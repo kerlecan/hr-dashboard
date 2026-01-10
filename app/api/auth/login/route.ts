@@ -1,7 +1,7 @@
-// app/api/auth/login/route. ts
+// app/api/auth/login/route.ts
 import { NextRequest, NextResponse } from "next/server"
 
-export async function POST(request:  NextRequest) {
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { username, password, dbPort, dbName } = body;
@@ -14,7 +14,7 @@ export async function POST(request:  NextRequest) {
     if (!username || !password) {
       return NextResponse.json(
         { success: false, message: "Kullanıcı adı ve şifre gereklidir" },
-        { status: 400 }
+        { status:  400 }
       );
     }
 
@@ -22,12 +22,11 @@ export async function POST(request:  NextRequest) {
     
     if (!apiToken) {
       return NextResponse.json(
-        { success: false, message:  "Sunucu yapılandırma hatası" },
-        { status: 500 }
+        { success: false, message: "Sunucu yapılandırma hatası" },
+        { status:  500 }
       );
     }
 
-    // Sadece belirtilen port'u kullan, fallback YAPMA
     const port = dbPort || 3089;
     const authUrl = `http://ik.hominum.info:${port}/butunbiApi/api/fin/auth`;
     
@@ -37,27 +36,30 @@ export async function POST(request:  NextRequest) {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
     
     try {
+      // ✅ SADECE username ve password gönder - fazladan parametre GÖNDERME
       const response = await fetch(authUrl, {
         method: "POST",
         headers:  { 
-          "Content-Type": "application/json",
+          "Content-Type":  "application/json",
           "Accept": "application/json",
-          "x-api-key": apiToken
+          "x-api-key":  apiToken
         },
-        body: JSON. stringify({ username, password }),
+        body: JSON.stringify({ 
+          username, 
+          password 
+          // dbName ve dbPort GÖNDERME - Node-RED bunları beklemiyor
+        }),
         signal: controller.signal
       });
       
       clearTimeout(timeoutId);
       
-      console.log('Response status:', response. status);
+      console.log('Response status:', response.status);
       
-      // Yanıtı parse et
       const data = await response.json().catch(() => null);
       console.log('Response data:', data);
       
       if (!response. ok) {
-        // 401 = Şifre hatalı
         if (response.status === 401) {
           return NextResponse.json(
             { 
@@ -69,7 +71,6 @@ export async function POST(request:  NextRequest) {
           );
         }
         
-        // 404 = Kullanıcı bulunamadı
         if (response.status === 404) {
           return NextResponse.json(
             { 
@@ -81,19 +82,17 @@ export async function POST(request:  NextRequest) {
           );
         }
         
-        // Diğer hatalar
         return NextResponse.json(
           { 
             success: false, 
-            message:  data?.message || "Giriş başarısız"
+            message: data?. message || "Giriş başarısız"
           },
           { status:  response.status }
         );
       }
 
-      // Başarılı yanıt kontrolü
       if (! data || data.isSuccess === false) {
-        return NextResponse.json(
+        return NextResponse. json(
           { 
             success: false, 
             message: data?.message || "Giriş başarısız",
@@ -103,9 +102,8 @@ export async function POST(request:  NextRequest) {
         );
       }
 
-      // Başarılı giriş
       console.log('=== LOGIN SUCCESS ===');
-      return NextResponse.json({
+      return NextResponse. json({
         success: true,
         message: "Giriş başarılı",
         user: {
@@ -143,7 +141,7 @@ export async function POST(request:  NextRequest) {
 export async function OPTIONS() {
   return new NextResponse(null, {
     status: 200,
-    headers:  {
+    headers: {
       'Access-Control-Allow-Origin':  '*',
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
