@@ -3,7 +3,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  ShieldCheck,
   MapPin,
   Loader2,
   CheckCircle2,
@@ -28,7 +27,7 @@ type TabType = "scan" | "show" | "manual";
 interface GateInfo {
   COMPANY: string;
   CLIENT: string;
-  PLANT:  string;
+  PLANT: string;
   GATEID: string;
   GATETYPE: string;
   DESCRIPTION: string;
@@ -40,8 +39,9 @@ function formatDateSlash(d: Date) {
   const yyyy = d.getFullYear();
   return `${dd}/${mm}/${yyyy}`;
 }
+
 function formatTime(d: Date) {
-  const hh = String(d. getHours()).padStart(2, "0");
+  const hh = String(d.getHours()).padStart(2, "0");
   const mi = String(d.getMinutes()).padStart(2, "0");
   const ss = String(d.getSeconds()).padStart(2, "0");
   return `${hh}:${mi}:${ss}`;
@@ -49,10 +49,10 @@ function formatTime(d: Date) {
 
 /**
  * QR içeriğinden GATEID'yi çıkarır. 
- * Desteklenen formatlar:
- * 1. URL formatı: ... ?gate=GATE01 veya &gate=GATE01
- * 2. JSON formatı: {"gate": "GATE01", ... }
- * 3. Düz text:  GATE01 (sadece GATEID)
+ * Desteklenen formatlar: 
+ * 1. JSON formatı: {"gate": "GATE01", ... } veya {"db":"X","persid":"Y","gate":"Z"}
+ * 2. URL formatı: ... ?gate=GATE01 veya &gate=GATE01
+ * 3. Düz text: GATE01 (sadece GATEID)
  */
 function extractGateIdFromQR(qrContent: string): string | null {
   if (!qrContent || typeof qrContent !== "string") {
@@ -61,10 +61,26 @@ function extractGateIdFromQR(qrContent: string): string | null {
 
   const trimmed = qrContent.trim();
 
-  // 1. URL formatı kontrolü
-  if (trimmed. includes("? ") || trimmed.includes("&")) {
+  // 1. JSON formatı kontrolü - ÖNCELİKLİ! 
+  if (trimmed.startsWith("{")) {
     try {
-      // URL olarak parse etmeyi dene
+      const parsed = JSON.parse(trimmed);
+      // gate, GATEID, gateid, gateId alanlarından birini ara
+      const gateValue = parsed.gate || parsed. GATEID || parsed.gateid || parsed.gateId;
+      if (gateValue) {
+        console.log("✅ JSON'dan GATEID çıkarıldı:", gateValue);
+        return String(gateValue).trim();
+      } else {
+        console.warn("⚠️ JSON parse edildi ama gate alanı bulunamadı:", parsed);
+      }
+    } catch (e) {
+      console.error("❌ JSON parse hatası:", e);
+    }
+  }
+
+  // 2. URL formatı kontrolü
+  if (trimmed.includes("?") || trimmed.includes("&")) {
+    try {
       let urlToParse = trimmed;
       if (! trimmed.startsWith("http")) {
         urlToParse = "http://dummy.com/" + trimmed;
@@ -72,38 +88,27 @@ function extractGateIdFromQR(qrContent: string): string | null {
       const url = new URL(urlToParse);
       const gateParam = url.searchParams.get("gate") || url.searchParams.get("GATEID") || url.searchParams.get("gateid");
       if (gateParam) {
-        return gateParam. trim();
+        console.log("✅ URL'den GATEID çıkarıldı:", gateParam);
+        return gateParam.trim();
       }
     } catch {
-      // URL parse hatası, regex ile dene
       const urlRegex = /[?&](?:gate|GATEID|gateid)=([^&\s]+)/i;
       const match = trimmed.match(urlRegex);
       if (match && match[1]) {
+        console.log("✅ Regex ile GATEID çıkarıldı:", match[1]);
         return match[1].trim();
       }
     }
   }
 
-  // 2. JSON formatı kontrolü
-  if (trimmed.startsWith("{")) {
-    try {
-      const parsed = JSON.parse(trimmed);
-      const gateValue = parsed.gate || parsed. GATEID || parsed.gateid || parsed.gateId;
-      if (gateValue) {
-        return String(gateValue).trim();
-      }
-    } catch {
-      // JSON parse hatası, devam et
-    }
-  }
-
   // 3. Düz text - Eğer kısa ve geçerli bir GATEID gibi görünüyorsa
-  // GATEID genellikle 50 karakterden kısadır
-  if (trimmed.length <= 50 && ! trimmed.includes(" ") && !trimmed.includes("http")) {
+  if (trimmed.length <= 100 && ! trimmed.includes("http") && !trimmed.startsWith("{")) {
+    console.log("✅ Düz text GATEID:", trimmed);
     return trimmed;
   }
 
   // 4. Hiçbir format uymadı
+  console.error("❌ GATEID çıkarılamadı.  QR içeriği:", trimmed. substring(0, 200));
   return null;
 }
 
@@ -128,7 +133,7 @@ export default function QRPage() {
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
-  const lastProcessedQR = useRef<string>(""); // Aynı QR'ın tekrar işlenmesini önle
+  const lastProcessedQR = useRef<string>("");
 
   const dbName = useMemo(() => (user as any)?.dbName || "HOMINUM", [user]);
 
@@ -150,7 +155,7 @@ export default function QRPage() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
         stream.getTracks().forEach((t) => t.stop());
-        if (!cancelled) {
+        if (! cancelled) {
           setHasCamera(true);
           setCameraError(null);
         }
@@ -177,7 +182,7 @@ export default function QRPage() {
         setGps({ x, y });
       },
       () => setGps({ x: "000", y: "000" }),
-      { enableHighAccuracy: true, timeout: 7000, maximumAge: 0 }
+      { enableHighAccuracy:  true, timeout: 7000, maximumAge: 0 }
     );
   }, []);
 
@@ -225,9 +230,13 @@ export default function QRPage() {
     fetchGates();
   }, [activeTab, dbName]);
 
-  // handleSend fonksiyonu - GATEID uzunluk kontrolü eklendi
+  // handleSend fonksiyonu
   const handleSend = useCallback(
     async (gate: string) => {
+      console.log("=== HANDLE SEND ===");
+      console.log("GATEID:", gate, "| Uzunluk:", gate?. length);
+      console.log("PERSID:", persidValue, "| Uzunluk:", persidValue?.length);
+
       if (!gate) {
         setSendState("error");
         setStatusMsg("Geçerli bir GATEID gerekli.");
@@ -239,11 +248,21 @@ export default function QRPage() {
         return;
       }
 
-      // GATEID uzunluk kontrolü - veritabanı sütun genişliğine göre ayarlayın
-      const MAX_GATEID_LENGTH = 50; // Veritabanınızdaki GATEID sütun genişliğine göre ayarlayın
+      // PERSID uzunluk kontrolü
+      const MAX_PERSID_LENGTH = 10;
+      if (persidValue.length > MAX_PERSID_LENGTH) {
+        setSendState("error");
+        setStatusMsg(`PersID çok uzun (${persidValue.length} karakter). Maksimum ${MAX_PERSID_LENGTH} karakter olmalı.`);
+        console.error("❌ PERSID too long:", persidValue);
+        return;
+      }
+
+      // GATEID uzunluk kontrolü
+      const MAX_GATEID_LENGTH = 100;
       if (gate.length > MAX_GATEID_LENGTH) {
         setSendState("error");
-        setStatusMsg(`GATEID çok uzun (${gate.length} karakter). Maksimum ${MAX_GATEID_LENGTH} karakter olmalı.  QR kodu geçersiz olabilir.`);
+        setStatusMsg(`GATEID çok uzun (${gate.length} karakter). Maksimum ${MAX_GATEID_LENGTH} karakter olmalı.`);
+        console.error("❌ GATEID too long:", gate);
         return;
       }
 
@@ -255,6 +274,19 @@ export default function QRPage() {
       setSendState("sending");
       setStatusMsg("Gönderiliyor...");
 
+      const bodyToSend = {
+        persid: persidValue,
+        PERSID: persidValue,
+        DATEINFO,
+        TIMEINFO,
+        GPS: "000",
+        GPS_X: gps.x || "000",
+        GPS_Y: gps.y || "000",
+        GATEID: gate,
+      };
+
+      console.log("📤 Gönderilen veri:", JSON.stringify(bodyToSend, null, 2));
+
       try {
         const res = await fetch(`/api/mobil-user/QR? dbName=${encodeURIComponent(dbName)}`, {
           method: "POST",
@@ -262,20 +294,13 @@ export default function QRPage() {
             "Content-Type": "application/json",
             "x-db-name": dbName,
           },
-          body: JSON.stringify({
-            persid: persidValue,
-            PERSID: persidValue,
-            DATEINFO,
-            TIMEINFO,
-            GPS: "000",
-            GPS_X: gps.x || "000",
-            GPS_Y: gps.y || "000",
-            GATEID: gate,
-          }),
+          body: JSON.stringify(bodyToSend),
         });
 
         const isConflict = res.status === 409;
         const json = await res.json().catch(() => ({} as any));
+
+        console.log("📥 API yanıtı:", json);
 
         if (res.ok) {
           setSendState("success");
@@ -289,7 +314,8 @@ export default function QRPage() {
           setSendState("error");
           setStatusMsg(json?.message || "Gönderim başarısız.  Tekrar deneyin.");
         }
-      } catch {
+      } catch (err) {
+        console.error("❌ Fetch hatası:", err);
         setSendState("error");
         setStatusMsg("Bağlantı hatası veya zaman aşımı.");
       } finally {
@@ -299,45 +325,54 @@ export default function QRPage() {
     [dbName, gps. x, gps.y, persidValue]
   );
 
-  // QR okutma işleyicisi - GATEID çıkarma mantığı eklendi
+  // QR okutma işleyicisi
   const handleQRScanned = useCallback(
     (qrText: string) => {
-      // Aynı QR'ın tekrar tekrar işlenmesini önle
+      console.log("=== QR OKUTULDU ===");
+      console.log("Ham QR içeriği:", qrText);
+      console.log("Uzunluk:", qrText. length);
+
+      // Aynı QR'ın tekrar işlenmesini önle
       if (qrText === lastProcessedQR.current) {
+        console.log("⏭️ Bu QR zaten işlendi, atlanıyor.. .");
         return;
       }
       lastProcessedQR.current = qrText;
 
-      // 3 saniye sonra aynı QR'ın tekrar okunabilmesine izin ver
+      // QR okunduğunda taramayı durdur
+      setIsScanning(false);
+
+      // 5 saniye sonra aynı QR'ın tekrar okunabilmesine izin ver
       setTimeout(() => {
         if (lastProcessedQR.current === qrText) {
           lastProcessedQR.current = "";
         }
-      }, 3000);
+      }, 5000);
 
       setLastScan(qrText);
 
       // QR içeriğinden GATEID'yi çıkar
       const extractedGateId = extractGateIdFromQR(qrText);
 
+      console.log("Çıkarılan GATEID:", extractedGateId);
+      console.log("===================");
+
       if (extractedGateId) {
-        // Başarıyla GATEID çıkarıldı
         setStatusMsg(`GATEID tespit edildi: ${extractedGateId}`);
         handleSend(extractedGateId);
       } else {
-        // GATEID çıkarılamadı
         setSendState("error");
         setStatusMsg(
-          `QR kodundan GATEID çıkarılamadı. QR içeriği: "${qrText. substring(0, 100)}${qrText.length > 100 ? "..." : ""}"`
+          `QR kodundan GATEID çıkarılamadı. QR içeriği: "${qrText.substring(0, 100)}${qrText.length > 100 ? "..." : ""}"`
         );
       }
     },
     [handleSend]
   );
 
-  // Kamera ile ZXing tarama (mobil-friendly alan)
+  // Kamera ile ZXing tarama
   useEffect(() => {
-    if (!isScanning || !hasCamera || activeTab !== "scan") return;
+    if (! isScanning || !hasCamera || activeTab !== "scan") return;
 
     const reader = new BrowserMultiFormatReader();
     let stopped = false;
@@ -352,7 +387,6 @@ export default function QRPage() {
             if (stopped) return;
             if (result) {
               const text = result.getText();
-              // Düzeltme: Artık handleQRScanned kullanıyoruz
               handleQRScanned(text);
             } else if (err && !(err instanceof NotFoundException)) {
               setCameraError("Kamera açılamadı veya okuma sırasında hata oluştu.");
@@ -374,11 +408,10 @@ export default function QRPage() {
       stopped = true;
       controlsRef.current?.stop();
       controlsRef.current = null;
-      if (reader. stop) reader.stop();
     };
   }, [isScanning, hasCamera, activeTab, handleQRScanned]);
 
-  // QR kodu oluştur (kapı seçimine göre)
+  // QR kodu oluştur
   const generateQRCode = useCallback(async () => {
     if (!persidValue) {
       setStatusMsg("PersID bulunamadı.  Lütfen oturum açın.");
@@ -391,12 +424,16 @@ export default function QRPage() {
 
     setQrLoading(true);
     try {
-      // Kapı bilgisini içeren QR URL oluştur
-      const qrData = `${window.location.origin}/api/mobil-user/QR?dbName=${encodeURIComponent(dbName)}&persid=${encodeURIComponent(persidValue)}&gate=${encodeURIComponent(selectedGate)}`;
+      const qrData = JSON.stringify({
+        db: dbName,
+        persid: persidValue,
+        gate: selectedGate,
+        timestamp: new Date().toISOString(),
+      });
 
       setQrCodeUrl(qrData);
       setStatusMsg(`"${selectedGate}" kapısı için QR kodu oluşturuldu.`);
-    } catch (err) {
+    } catch {
       setStatusMsg("QR oluşturulurken hata oluştu.");
     } finally {
       setQrLoading(false);
@@ -406,15 +443,23 @@ export default function QRPage() {
   // Kapı seçimi değiştiğinde QR'ı otomatik yenile
   useEffect(() => {
     if (activeTab === "show" && selectedGate) {
-      setQrCodeUrl(""); // Eski QR'ı temizle
-      generateQRCode(); // Yeni QR oluştur
+      setQrCodeUrl("");
+      generateQRCode();
     }
   }, [activeTab, selectedGate, generateQRCode]);
 
   const resetStatus = () => {
     setSendState("idle");
     setStatusMsg("");
-    lastProcessedQR.current = ""; // QR cache'ini temizle
+    lastProcessedQR.current = "";
+  };
+
+  const startNewScan = () => {
+    resetStatus();
+    setIsScanning(true);
+    setLastScan("");
+    setCameraError(null);
+    if (! hasCamera) setHasCamera(true);
   };
 
   const statusBlock = {
@@ -431,22 +476,11 @@ export default function QRPage() {
     setTimeout(() => setStatusMsg(""), 2000);
   };
 
-  // QR görseli için URL oluştur (kapı bilgisi dahil)
   const qrImageSrc = useMemo(() => {
-    if (! qrCodeUrl) return "";
+    if (!qrCodeUrl) return "";
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrCodeUrl)}&format=png&margin=10`;
+  }, [qrCodeUrl]);
 
-    // QR içeriği:  PersID ve kapı bilgisi
-    const qrContent = JSON.stringify({
-      db:  dbName,
-      persid:  persidValue,
-      gate:  selectedGate,
-      timestamp: new Date().toISOString(),
-    });
-
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qrContent)}&format=png&margin=10`;
-  }, [qrCodeUrl, dbName, persidValue, selectedGate]);
-
-  // Seçilen kapının detaylarını bul
   const selectedGateDetails = useMemo(() => {
     return gateList.find((gate) => gate.GATEID === selectedGate);
   }, [gateList, selectedGate]);
@@ -481,7 +515,7 @@ export default function QRPage() {
           className={`flex-1 py-3 rounded-t-xl flex items-center justify-center gap-2 font-bold transition ${
             activeTab === "scan"
               ? "bg-slate-800 text-cyan-300 border-t border-x border-white/10"
-              : "bg-transparent text-slate-400 hover:text-white"
+              : "bg-transparent text-slate-400 hover: text-white"
           }`}
         >
           <Scan className="h-5 w-5" />
@@ -530,6 +564,7 @@ export default function QRPage() {
                 )}
               </div>
 
+              {/* Tarama aktifse kamera göster */}
               {hasCamera && isScanning && (
                 <div className="relative mx-auto w-full max-w-[420px] aspect-[4/3] rounded-2xl border border-white/10 bg-black overflow-hidden shadow-xl">
                   <video
@@ -553,7 +588,93 @@ export default function QRPage() {
                 </div>
               )}
 
-              {!hasCamera && (
+              {/* Tarama durduğunda sonuç göster */}
+              {hasCamera && !isScanning && lastScan && (
+                <div className="mx-auto w-full max-w-[420px] rounded-2xl border border-white/10 bg-slate-800/50 p-6 text-center">
+                  {sendState === "sending" && (
+                    <div className="flex flex-col items-center">
+                      <Loader2 className="h-16 w-16 text-cyan-300 animate-spin mb-4" />
+                      <h3 className="text-lg font-bold text-cyan-300">Gönderiliyor...</h3>
+                      <p className="text-sm text-slate-400 mt-2">Lütfen bekleyin</p>
+                    </div>
+                  )}
+                  {sendState === "success" && (
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center mb-4">
+                        <CheckCircle2 className="h-12 w-12 text-emerald-400" />
+                      </div>
+                      <h3 className="text-xl font-bold text-emerald-300">QR Başarıyla Okundu!</h3>
+                      <p className="text-sm text-slate-300 mt-2">{statusMsg}</p>
+                      <button
+                        onClick={startNewScan}
+                        className="mt-6 px-6 py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-semibold hover:bg-emerald-500/30 transition flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-5 w-5" />
+                        Yeni QR Okut
+                      </button>
+                    </div>
+                  )}
+                  {sendState === "duplicate" && (
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 rounded-full bg-amber-500/20 flex items-center justify-center mb-4">
+                        <AlertCircle className="h-12 w-12 text-amber-400" />
+                      </div>
+                      <h3 className="text-xl font-bold text-amber-300">Zaten Okutulmuş</h3>
+                      <p className="text-sm text-slate-300 mt-2">{statusMsg}</p>
+                      <button
+                        onClick={startNewScan}
+                        className="mt-6 px-6 py-3 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300 font-semibold hover:bg-amber-500/30 transition flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-5 w-5" />
+                        Yeni QR Okut
+                      </button>
+                    </div>
+                  )}
+                  {sendState === "error" && (
+                    <div className="flex flex-col items-center">
+                      <div className="w-20 h-20 rounded-full bg-rose-500/20 flex items-center justify-center mb-4">
+                        <AlertCircle className="h-12 w-12 text-rose-400" />
+                      </div>
+                      <h3 className="text-xl font-bold text-rose-300">Hata Oluştu</h3>
+                      <p className="text-sm text-slate-300 mt-2">{statusMsg}</p>
+                      <button
+                        onClick={startNewScan}
+                        className="mt-6 px-6 py-3 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 font-semibold hover:bg-rose-500/30 transition flex items-center gap-2"
+                      >
+                        <RefreshCw className="h-5 w-5" />
+                        Tekrar Dene
+                      </button>
+                    </div>
+                  )}
+                  {sendState === "idle" && (
+                    <div className="flex flex-col items-center">
+                      <p className="text-slate-400">QR işleniyor...</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Tarama aktif değil ve son okuma yoksa - başlangıç ekranı */}
+              {hasCamera && !isScanning && ! lastScan && (
+                <div className="mx-auto w-full max-w-[420px] rounded-2xl border border-white/10 bg-slate-800/50 p-6 text-center">
+                  <div className="flex flex-col items-center">
+                    <div className="w-20 h-20 rounded-full bg-cyan-500/20 flex items-center justify-center mb-4">
+                      <Camera className="h-12 w-12 text-cyan-400" />
+                    </div>
+                    <h3 className="text-lg font-bold text-cyan-300">Kamera Hazır</h3>
+                    <p className="text-sm text-slate-400 mt-2">Taramayı başlatmak için butona basın</p>
+                    <button
+                      onClick={startNewScan}
+                      className="mt-6 px-6 py-3 rounded-xl bg-cyan-500/20 border border-cyan-500/30 text-cyan-300 font-semibold hover:bg-cyan-500/30 transition flex items-center gap-2"
+                    >
+                      <Scan className="h-5 w-5" />
+                      Taramayı Başlat
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {! hasCamera && (
                 <div className="rounded-xl border border-dashed border-amber-400/40 bg-amber-500/10 p-4 text-sm text-amber-100">
                   <div className="flex items-center gap-2 font-semibold">
                     <CameraOff className="h-5 w-5" />
@@ -562,32 +683,27 @@ export default function QRPage() {
                   <p className="mt-2 text-amber-50/80">
                     İzin verilmedi veya cihazda kamera bulunmuyor.  Manuel doğrulamayı kullanabilirsiniz.
                   </p>
+                  <button
+                    onClick={() => setActiveTab("manual")}
+                    className="mt-3 px-4 py-2 rounded-lg bg-amber-500/20 border border-amber-500/30 text-amber-200 text-sm hover:bg-amber-500/30 transition"
+                  >
+                    Manuel Girişe Git
+                  </button>
                 </div>
               )}
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <button
-                  onClick={() => {
-                    resetStatus();
-                    setIsScanning((prev) => !prev);
-                    setCameraError(null);
-                    if (! hasCamera) setHasCamera(true);
-                  }}
-                  className="px-3 py-2 rounded-lg bg-white/10 border border-white/15 text-sm flex items-center gap-2 hover:bg-white/15 active:scale-95 transition"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  {isScanning ? "Durdur" : "Tekrar Başlat"}
-                </button>
-                <button
-                  onClick={() => {
-                    resetStatus();
-                    setLastScan("");
-                  }}
-                  className="px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm hover:bg-white/10 active:scale-95 transition"
-                >
-                  Temizle
-                </button>
-              </div>
+              {/* Tarama aktifken kontrol butonları */}
+              {hasCamera && isScanning && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setIsScanning(false)}
+                    className="px-3 py-2 rounded-lg bg-white/10 border border-white/15 text-sm flex items-center gap-2 hover:bg-white/15 active:scale-95 transition"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Durdur
+                  </button>
+                </div>
+              )}
 
               {cameraError && (
                 <div className="mt-3 rounded-lg border border-rose-500/40 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 flex items-start gap-2">
@@ -604,13 +720,13 @@ export default function QRPage() {
           <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-emerald-900/30 to-slate-800/60 p-4 shadow-2xl relative overflow-hidden">
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),transparent_45%)] pointer-events-none" />
             <div className="relative z-10 space-y-3">
-              {/* Kapı seçimi (QR üretimi için) */}
+              {/* Kapı seçimi */}
               <div>
                 <label className="text-xs text-slate-400 flex items-center gap-2 mb-2">
                   <DoorOpen className="h-4 w-4" />
                   Kapı Seçimi (QR için)
                 </label>
-                {loadingGates ? (
+                {loadingGates ?  (
                   <div className="flex items-center justify-center py-3">
                     <Loader2 className="h-5 w-5 animate-spin text-emerald-300" />
                     <span className="ml-2 text-sm text-slate-300">Kapılar yükleniyor...</span>
@@ -619,12 +735,12 @@ export default function QRPage() {
                   <div className="space-y-2">
                     <select
                       value={selectedGate}
-                      onChange={(e) => setSelectedGate(e. target.value)}
+                      onChange={(e) => setSelectedGate(e.target.value)}
                       className="w-full rounded-xl border border-white/10 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
                     >
                       {gateList.map((gate) => (
-                        <option key={gate.GATEID} value={gate.GATEID}>
-                          {gate.DESCRIPTION} - {gate.GATETYPE}
+                        <option key={gate. GATEID} value={gate.GATEID}>
+                          {gate. DESCRIPTION} - {gate.GATETYPE}
                         </option>
                       ))}
                     </select>
@@ -672,9 +788,8 @@ export default function QRPage() {
                 </div>
               ) : qrCodeUrl && selectedGate ? (
                 <div className="flex flex-col items-center">
-                  {/* QR Kodu Görseli */}
                   <div className="w-72 h-72 bg-white rounded-2xl p-4 flex items-center justify-center border-4 border-emerald-400/50 shadow-2xl shadow-emerald-500/20">
-                    {qrImageSrc ? (
+                    {qrImageSrc ?  (
                       <img
                         src={qrImageSrc}
                         alt="QR code"
@@ -690,7 +805,6 @@ export default function QRPage() {
                     )}
                   </div>
 
-                  {/* Kapı Bilgileri */}
                   <div className="mt-4 p-3 rounded-xl bg-slate-800/50 border border-emerald-500/30 w-full">
                     <div className="text-xs text-slate-400 mb-1">Kapı Bilgisi: </div>
                     <div className="text-sm text-slate-200 font-medium">{selectedGate}</div>
@@ -701,9 +815,8 @@ export default function QRPage() {
                     )}
                   </div>
 
-                  {/* QR İçeriği */}
                   <div className="mt-4 w-full">
-                    <div className="text-xs text-slate-400 mb-2">QR İçeriği: </div>
+                    <div className="text-xs text-slate-400 mb-2">QR İçeriği:</div>
                     <div className="flex gap-2">
                       <input
                         readOnly
@@ -718,7 +831,7 @@ export default function QRPage() {
                       </button>
                     </div>
                     <div className="text-xs text-slate-500 mt-2 text-center">
-                      Bu QR kodu yalnızca seçili kapıda geçerlidir. 
+                      Bu QR kodu yalnızca seçili kapıda geçerlidir.
                     </div>
                   </div>
                 </div>
@@ -764,7 +877,6 @@ export default function QRPage() {
               </div>
 
               <div className="space-y-4">
-                {/* Kapı Seçimi */}
                 <div>
                   <label className="text-xs text-slate-400 flex items-center gap-2 mb-2">
                     <DoorOpen className="h-4 w-4" />
@@ -780,11 +892,11 @@ export default function QRPage() {
                       <select
                         value={selectedGate}
                         onChange={(e) => setSelectedGate(e.target.value)}
-                        className="w-full rounded-xl border border-white/10 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400/60"
+                        className="w-full rounded-xl border border-white/10 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus: ring-2 focus:ring-amber-400/60"
                       >
-                        {gateList. map((gate) => (
-                          <option key={gate. GATEID} value={gate. GATEID}>
-                            {gate.DESCRIPTION} - {gate. GATETYPE}
+                        {gateList.map((gate) => (
+                          <option key={gate.GATEID} value={gate.GATEID}>
+                            {gate.DESCRIPTION} - {gate.GATETYPE}
                           </option>
                         ))}
                       </select>
@@ -845,7 +957,7 @@ export default function QRPage() {
                   sending: "Gönderiliyor",
                   success: "Başarılı",
                   duplicate: "Tekrar okutuldu",
-                  error:  "Hata",
+                  error: "Hata",
                 }[sendState]
               }
             </span>
@@ -886,7 +998,7 @@ export default function QRPage() {
             onClick={() => setActiveTab("manual")}
             className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 ${
               activeTab === "manual"
-                ?  "bg-amber-500/20 border border-amber-500/30"
+                ? "bg-amber-500/20 border border-amber-500/30"
                 : "bg-white/5 border border-white/10 hover:bg-white/10"
             }`}
           >
