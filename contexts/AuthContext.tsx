@@ -17,7 +17,7 @@ type User = {
   office: string | null
   managerid: string | null
   subFirm: string | null
-  subFirmid:  string | null
+  subFirmid: string | null
   userprofile: 'GELISTIRME' | 'WEB' | null
   dbName?:  string
   dbPort?: number
@@ -35,7 +35,7 @@ type AuthContextType = {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, password:  string) => Promise<void>
+  login:  (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
   userRole: 'GELISTIRME' | 'WEB' | null
   failedAttempts: FailedAttempt[]
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
     const attempt = failedAttempts.find(a => a.username === username)
     if (!attempt || !attempt.blockedUntil) return null
     const remaining = attempt.blockedUntil - Date.now()
-    return remaining > 0 ? remaining :  null
+    return remaining > 0 ? remaining : null
   }
 
   const getRemainingAttempts = (username: string): number => {
@@ -177,7 +177,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
       if (isUserBlocked(username)) {
         const remainingTime = getRemainingTime(username);
         if (remainingTime) {
-          const minutes = Math. ceil(remainingTime / (60 * 1000));
+          const minutes = Math.ceil(remainingTime / (60 * 1000));
           throw new Error(`Hesabınız ${minutes} dakika süreyle bloke edilmiştir. `);
         }
       }
@@ -192,7 +192,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
 
       if (!userLookupResponse.ok) {
         const errorData = await userLookupResponse.json().catch(() => ({}));
-        throw new Error(errorData.message || "Kullanıcı bilgileri alınamadı.");
+        throw new Error(errorData. message || "Kullanıcı bilgileri alınamadı.");
       }
 
       const lookupData = await userLookupResponse.json();
@@ -201,10 +201,10 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         throw new Error(lookupData.message || "Kullanıcı bulunamadı.");
       }
 
-      const userDataFromApi = lookupData. user || lookupData;
+      const userDataFromApi = lookupData.user || lookupData;
       
       const dbName = userDataFromApi.dbName || lookupData.dbName;
-      const dbPort = userDataFromApi.dbPort || lookupData.dbPort || 3159;
+      const dbPort = userDataFromApi.dbPort || lookupData. dbPort || 3159;
       const userProfile = userDataFromApi.userProfile || userDataFromApi.userprofile || 'WEB';
       const apiBaseUrl = lookupData.apiBaseUrl || `http://ik.hominum.info:${dbPort}`;
 
@@ -212,16 +212,17 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         throw new Error("Veritabanı adı bulunamadı.");
       }
 
-      // 2. ADIM: Login - Kendi API route'umuza istek at (Vercel proxy)
+      // 2. ADIM: Login - Kendi API route'umuza istek at (dbName ve dbPort ile)
       const authResponse = await fetch('/api/auth/login', {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type":  "application/json" },
         body: JSON.stringify({ 
           username, 
           password,
-          dbPort  // dbPort'u gönderiyoruz ki route hangi porta bağlanacağını bilsin
+          dbPort,   // Dinamik port
+          dbName    // Veritabanı adı - fallback için gerekli
         }),
-        signal: AbortSignal.timeout(15000)
+        signal: AbortSignal.timeout(20000)
       });
 
       let authData:  any;
@@ -231,7 +232,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         authData = null;
       }
 
-      if (!authResponse.ok) {
+      if (! authResponse.ok) {
         if (authResponse.status === 401) {
           throw new Error("Şifre hatalı.  Lütfen tekrar deneyin.");
         }
@@ -241,19 +242,19 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         }
         
         if (authResponse.status === 500) {
-          throw new Error("Sunucu hatası. Lütfen daha sonra tekrar deneyin.");
+          throw new Error("Sunucu hatası.  Lütfen daha sonra tekrar deneyin.");
         }
 
         if (authResponse.status === 503) {
           throw new Error("API sunucusuna bağlanılamadı. Lütfen tekrar deneyin.");
         }
         
-        throw new Error(authData?.message || `Giriş hatası (${authResponse.status}). Lütfen tekrar deneyin.`);
+        throw new Error(authData?. message || `Giriş hatası (${authResponse.status}). Lütfen tekrar deneyin.`);
       }
 
-      // Route'tan gelen yanıtı kontrol et (success field)
+      // Route'tan gelen yanıtı kontrol et
       if (authData?.success !== true) {
-        throw new Error(authData?.message || "Giriş başarısız. Lütfen tekrar deneyin.");
+        throw new Error(authData?.message || "Giriş başarısız.  Lütfen tekrar deneyin.");
       }
 
       ApiConfigService.setGlobalApiInfo({
@@ -265,11 +266,11 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
       });
 
       // Route'tan gelen user objesini kullan
-      const userData: User = {
-        username: authData?.user?.username ?? username,
+      const userData:  User = {
+        username:  authData?. user?.username ??  username,
         persid: authData?.user?.sicil ?? null,
         display:  authData?.user?.displayName ??  username,
-        ismanager:  0,
+        ismanager: 0,
         office: null,
         managerid: null,
         subFirm:  null,
@@ -294,8 +295,8 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         router.push("/dashboard");
       }
 
-    } catch (err: any) {
-      const errorMessage = err?.message || '';
+    } catch (err:  any) {
+      const errorMessage = err?. message || '';
       const isPasswordError = 
         errorMessage.toLowerCase().includes('şifre') ||
         errorMessage.toLowerCase().includes('password');
@@ -311,7 +312,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
         throw new Error(`Çok fazla hatalı deneme.  Hesabınız ${minutes} dakika bloke. `);
       }
       
-      if (err?.name === 'AbortError' || errorMessage.includes('timeout')) {
+      if (err?. name === 'AbortError' || errorMessage.includes('timeout')) {
         throw new Error("İstek zaman aşımı. Lütfen tekrar deneyin.");
       }
       
