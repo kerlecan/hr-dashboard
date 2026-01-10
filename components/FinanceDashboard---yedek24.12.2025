@@ -1,0 +1,956 @@
+"use client"
+
+import { useEffect, useState, useMemo } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Search, Filter, Download, RefreshCw, Building, FileText, BarChart3, Calendar, Hash, TrendingUp, AlertCircle, MapPin } from "lucide-react"
+
+type Voucher = {
+  id: string
+  docType: string
+  docNo: string
+  docItem: string
+  date: string
+  accountName: string
+  debit: number
+  credit: number
+  postway: string
+  description: string
+  company: string
+  account: string
+  acctype: string
+  rawDate: string
+}
+
+type VoucherType = {
+  DOCTYPE: string
+  STEXT: string
+}
+
+type Firm = {
+  COMPANY: string
+  FIRMA: string
+  PLANT?: string
+  TESIS?: string
+  TESISLER?: Array<{PLANT: string, TESIS: string}>
+}
+
+type DashboardStats = {
+  totalDebit: number
+  totalCredit: number
+  totalVouchers: number
+  totalFirms: number
+  totalVoucherTypes: number
+  balance: number
+  balanceType: string
+  voucherByType: Record<string, number>
+  voucherByCompany: Record<string, number>
+  voucherByDay: Record<string, number>
+  topAccounts: Array<{name: string, total: number, count: number}>
+}
+
+export default function FinanceDashboard() {
+  const [vouchers, setVouchers] = useState<Voucher[]>([])
+  const [voucherTypes, setVoucherTypes] = useState<VoucherType[]>([])
+  const [firms, setFirms] = useState<Firm[]>([])
+  
+  const [loading, setLoading] = useState({
+    vouchers: true,
+    types: true,
+    firms: true
+  })
+  const [error, setError] = useState<string | null>(null)
+  
+  // Default filtre: Son 7 gün
+  const [filters, setFilters] = useState({
+    docType: "all",
+    company: "all",
+    search: "",
+    dateRange: "7", // Default: Son 7 gün
+    acctype: "all"
+  })
+
+  const [activeTab, setActiveTab] = useState("overview")
+
+  // Tüm verileri çek
+  const fetchAllData = async () => {
+    try {
+      setError(null)
+      setLoading({ vouchers: true, types: true, firms: true })
+      
+      // 1. Fişleri çek
+      const vouchersRes = await fetch("/api/vouchers")
+      if (!vouchersRes.ok) throw new Error("Fiş verileri alınamadı")
+      const vouchersJson = await vouchersRes.json()
+      
+      const mappedVouchers: Voucher[] = (vouchersJson.data || []).map((item: any, index: number) => ({
+        id: `${item.COMPANY || '01'}-${item.FINDOCTYPE || '??'}-${item.FINDOCNUM || index}-${item.FINDOCITEM || index}`,
+        docType: item.FINDOCTYPE || "??",
+        docNo: item.FINDOCNUM || index.toString(),
+        docItem: item.FINDOCITEM || "0",
+        date: item.POSTDATE ? new Date(item.POSTDATE).toLocaleDateString('tr-TR') : "-",
+        rawDate: item.POSTDATE || "",
+        accountName: item.accountName || item.ATEXT || item.STEXT1 || "-",
+        debit: Number(item.HPOSTAMNT) || 0,
+        credit: Number(item.DPOSTAMNT) || 0,
+        postway: item.POSTWAY || "0",
+        description: item.description || item.STEXT1 || "",
+        company: item.COMPANY || "01",
+        account: item.ACCOUNT || "",
+        acctype: item.ACCTYPE || ""
+      }))
+      
+      setVouchers(mappedVouchers)
+      setLoading(prev => ({ ...prev, vouchers: false }))
+
+      // 2. Fiş tiplerini çek
+      const typesRes = await fetch("/api/voucher-types")
+      if (!typesRes.ok) console.warn("Fiş tipleri alınamadı")
+      const typesJson = await typesRes.json()
+      setVoucherTypes(typesJson.data || [])
+      setLoading(prev => ({ ...prev, types: false }))
+
+      // 3. Firma verilerini çek ve grupla
+      const firmsRes = await fetch("/api/firms")
+      if (!firmsRes.ok) console.warn("Firma verileri alınamadı")
+      const firmsJson = await firmsRes.json()
+      
+      // Firmaları grupla: Aynı firma için tesisleri birleştir
+      const firmMap = new Map<string, Firm>()
+      
+      firmsJson.data?.forEach((item: any) => {
+        const company = item.COMPANY
+        if (!company) return
+        
+        if (!firmMap.has(company)) {
+          // İlk kez görülen firma
+          firmMap.set(company, {
+            COMPANY: company,
+            FIRMA: item.FIRMA,
+            TESISLER: []
+          })
+        }
+        
+        const firmData = firmMap.get(company)!
+        
+        // Eğer tesis bilgisi varsa ekle
+        if (item.PLANT && item.TESIS) {
+          firmData.TESISLER!.push({
+            PLANT: item.PLANT,
+            TESIS: item.TESIS
+          })
+        }
+        
+        // İlk tesis bilgisini ana objede sakla (görüntüleme için)
+        if (item.PLANT && item.TESIS && !firmData.PLANT) {
+          firmData.PLANT = item.PLANT
+          firmData.TESIS = item.TESIS
+        }
+      })
+      
+      // Map'ten array'e çevir ve tesis sayısını kontrol et
+      const processedFirms: Firm[] = Array.from(firmMap.values()).map(firm => ({
+        ...firm,
+        // Eğer hiç tesis yoksa "Merkez" olarak işaretle
+        TESISLER: firm.TESISLER && firm.TESISLER.length > 0 ? firm.TESISLER : [
+          { PLANT: "00", TESIS: "Merkez" }
+        ]
+      }))
+      
+      setFirms(processedFirms)
+      setLoading(prev => ({ ...prev, firms: false }))
+
+    } catch (err: any) {
+      setError(err.message)
+      setLoading({ vouchers: false, types: false, firms: false })
+    }
+  }
+
+  useEffect(() => {
+    fetchAllData()
+  }, [])
+
+  // Filtrelenmiş verileri hesapla (useMemo ile performans için)
+  const filteredVouchers = useMemo(() => {
+    return vouchers.filter(voucher => {
+      if (filters.docType !== "all" && voucher.docType !== filters.docType) return false
+      if (filters.company !== "all" && voucher.company !== filters.company) return false
+      if (filters.acctype !== "all" && voucher.acctype !== filters.acctype) return false
+      
+      if (filters.search) {
+        const searchLower = filters.search.toLowerCase()
+        return (
+          voucher.docNo.toLowerCase().includes(searchLower) ||
+          voucher.accountName.toLowerCase().includes(searchLower) ||
+          voucher.description.toLowerCase().includes(searchLower) ||
+          voucher.account.toLowerCase().includes(searchLower) ||
+          voucher.docType.toLowerCase().includes(searchLower)
+        )
+      }
+      
+      // Tarih filtresi (son X gün)
+      if (filters.dateRange !== "all" && voucher.rawDate) {
+        const days = parseInt(filters.dateRange)
+        const cutoffDate = new Date()
+        cutoffDate.setDate(cutoffDate.getDate() - days)
+        const voucherDate = new Date(voucher.rawDate)
+        return voucherDate >= cutoffDate
+      }
+      
+      return true
+    })
+  }, [vouchers, filters])
+
+  // İstatistikleri hesapla (filtrelenmiş verilere göre)
+  const stats = useMemo(() => {
+    if (filteredVouchers.length === 0 && firms.length === 0 && voucherTypes.length === 0) {
+      return {
+        totalDebit: 0,
+        totalCredit: 0,
+        totalVouchers: 0,
+        totalFirms: firms.length,
+        totalVoucherTypes: voucherTypes.length,
+        balance: 0,
+        balanceType: "Borç Bakiyesi",
+        voucherByType: {},
+        voucherByCompany: {},
+        voucherByDay: {},
+        topAccounts: []
+      }
+    }
+
+    const totalDebit = filteredVouchers.reduce((sum, v) => sum + v.debit, 0)
+    const totalCredit = filteredVouchers.reduce((sum, v) => sum + v.credit, 0)
+    const balance = Math.abs(totalCredit - totalDebit)
+    const balanceType = totalCredit > totalDebit ? "Alacak Bakiyesi" : "Borç Bakiyesi"
+
+    // Fiş tiplerine göre grupla
+    const voucherByType = filteredVouchers.reduce((acc, v) => {
+      if (!acc[v.docType]) acc[v.docType] = 0
+      acc[v.docType] += 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // Firmalara göre grupla
+    const voucherByCompany = filteredVouchers.reduce((acc, v) => {
+      if (!acc[v.company]) acc[v.company] = 0
+      acc[v.company] += 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // Günlere göre grupla
+    const voucherByDay = filteredVouchers.reduce((acc, v) => {
+      const date = v.date.split(' ')[0] // Sadece tarih kısmını al
+      if (!acc[date]) acc[date] = 0
+      acc[date] += 1
+      return acc
+    }, {} as Record<string, number>)
+
+    // En çok işlem yapılan hesaplar
+    const accountMap = filteredVouchers.reduce((acc, v) => {
+      if (!v.accountName || v.accountName === "-") return acc
+      if (!acc[v.accountName]) {
+        acc[v.accountName] = { total: 0, count: 0 }
+      }
+      acc[v.accountName].total += (v.debit + v.credit)
+      acc[v.accountName].count += 1
+      return acc
+    }, {} as Record<string, { total: number, count: number }>)
+
+    const topAccounts = Object.entries(accountMap)
+      .map(([name, data]) => ({ name, total: data.total, count: data.count }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10)
+
+    return {
+      totalDebit,
+      totalCredit,
+      totalVouchers: filteredVouchers.length,
+      totalFirms: firms.length,
+      totalVoucherTypes: voucherTypes.length,
+      balance,
+      balanceType,
+      voucherByType,
+      voucherByCompany,
+      voucherByDay,
+      topAccounts
+    }
+  }, [filteredVouchers, firms, voucherTypes])
+
+  // Firma adını bul
+  const getFirmName = (companyCode: string) => {
+    const firm = firms.find(f => f.COMPANY === companyCode)
+    return firm ? firm.FIRMA : `Firma ${companyCode}`
+  }
+
+  // Firma tesis bilgisini bul
+  const getFirmWithPlants = (companyCode: string) => {
+    const firm = firms.find(f => f.COMPANY === companyCode)
+    if (!firm) return { name: `Firma ${companyCode}`, plants: [] }
+    
+    return {
+      name: firm.FIRMA,
+      plants: firm.TESISLER || []
+    }
+  }
+
+  // Fiş tipi adını bul
+  const getVoucherTypeName = (typeCode: string) => {
+    const type = voucherTypes.find(t => t.DOCTYPE === typeCode)
+    return type ? type.STEXT : typeCode
+  }
+
+  // Hesap tipi adını bul
+  const getAccountTypeName = (typeCode: string) => {
+    const types: Record<string, string> = {
+      "1": "Müşteri",
+      "2": "Tedarikçi",
+      "3": "Genel"
+    }
+    return types[typeCode] || typeCode
+  }
+
+  // Veri yoksa
+  if (loading.vouchers && loading.types && loading.firms) {
+    return (
+      <div className="p-10 text-center animate-pulse text-gray-600 space-y-4">
+        <div className="h-8 bg-gray-200 rounded w-64 mx-auto"></div>
+        <div className="h-4 bg-gray-200 rounded w-48 mx-auto"></div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (error && vouchers.length === 0) {
+    return (
+      <div className="p-10 text-center">
+        <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+        <div className="text-red-500 mb-4">{error}</div>
+        <Button onClick={fetchAllData} className="gap-2">
+          <RefreshCw className="w-4 h-4" />
+          Tekrar Dene
+        </Button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="p-4 md:p-6 space-y-6 max-w-screen-2xl mx-auto">
+      {/* Başlık ve Kontroller */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold mb-1 flex items-center gap-3">
+            <BarChart3 className="w-6 h-6 md:w-8 md:h-8 text-blue-600" />
+            H&R Tomorrow Muhasebe Dashboard
+          </h1>
+          <p className="text-xs md:text-sm text-gray-500">
+            {stats.totalVouchers} fiş • {stats.totalFirms} firma • {stats.totalVoucherTypes} fiş tipi
+            {error && <span className="ml-2 text-red-500">• {error}</span>}
+          </p>
+        </div>
+        
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-2" onClick={fetchAllData}>
+            <RefreshCw className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden md:inline">Yenile</span>
+          </Button>
+          <Button variant="outline" size="sm" className="gap-2">
+            <Download className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden md:inline">Export</span>
+          </Button>
+        </div>
+      </div>
+
+      {/* Filtreler */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4 p-3 md:p-4 bg-gray-50 rounded-lg border">
+        <div className="lg:col-span-2">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-3 h-3 md:w-4 md:h-4" />
+            <Input
+              placeholder="Fiş no, hesap veya açıklama ara..."
+              value={filters.search}
+              onChange={(e) => setFilters({...filters, search: e.target.value})}
+              className="pl-8 md:pl-10 text-sm"
+            />
+          </div>
+        </div>
+        
+        <Select value={filters.docType} onValueChange={(value) => setFilters({...filters, docType: value})}>
+          <SelectTrigger className="text-sm">
+            <div className="flex items-center gap-2">
+              <FileText className="w-3 h-3 md:w-4 md:h-4" />
+              <SelectValue placeholder="Fiş Tipi" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tüm Fiş Tipleri</SelectItem>
+            {voucherTypes.map(type => (
+              <SelectItem key={type.DOCTYPE} value={type.DOCTYPE}>
+                {type.STEXT} ({type.DOCTYPE})
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.company} onValueChange={(value) => setFilters({...filters, company: value})}>
+          <SelectTrigger className="text-sm">
+            <div className="flex items-center gap-2">
+              <Building className="w-3 h-3 md:w-4 md:h-4" />
+              <SelectValue placeholder="Firma" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">Tüm Firmalar</SelectItem>
+            {firms.map(firm => (
+              <SelectItem key={firm.COMPANY} value={firm.COMPANY}>
+                <div className="flex flex-col">
+                  <span className="font-medium">{firm.FIRMA}</span>
+                  <span className="text-xs text-gray-500">
+                    Kod: {firm.COMPANY} • 
+                    {firm.TESISLER && firm.TESISLER.length > 0 ? (
+                      <span className="ml-1">
+                        {firm.TESISLER.length} tesis
+                      </span>
+                    ) : (
+                      <span className="ml-1">Merkez</span>
+                    )}
+                  </span>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={filters.dateRange} onValueChange={(value) => setFilters({...filters, dateRange: value})}>
+          <SelectTrigger className="text-sm">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-3 h-3 md:w-4 md:h-4" />
+              <SelectValue placeholder="Tarih" />
+            </div>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="7">Son 7 Gün</SelectItem>
+            <SelectItem value="30">Son 30 Gün</SelectItem>
+            <SelectItem value="90">Son 90 Gün</SelectItem>
+            <SelectItem value="365">Son 1 Yıl</SelectItem>
+            <SelectItem value="all">Tüm Zamanlar</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Tab Menü */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid grid-cols-3 mb-6">
+          <TabsTrigger value="overview" className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            <span className="hidden md:inline">Genel Bakış</span>
+            <span className="md:hidden">Özet</span>
+          </TabsTrigger>
+          <TabsTrigger value="vouchers" className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            <span className="hidden md:inline">Fiş Listesi</span>
+            <span className="md:hidden">Fişler</span>
+          </TabsTrigger>
+          <TabsTrigger value="analysis" className="flex items-center gap-2">
+            <TrendingUp className="w-4 h-4" />
+            <span className="hidden md:inline">Analiz</span>
+            <span className="md:hidden">Analiz</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Özet Tab'ı */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Özet Kartlar */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+            <Card className="bg-gradient-to-br from-red-50 to-red-100 shadow-lg rounded-xl border-0">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs md:text-sm font-semibold text-red-600 uppercase tracking-wider">Toplam Borç</p>
+                    <p className="text-xl md:text-2xl lg:text-3xl font-bold text-red-800 mt-1 md:mt-2">
+                      ₺{stats.totalDebit.toLocaleString('tr-TR')}
+                    </p>
+                    <p className="text-xs text-red-600 mt-1">
+                      {filteredVouchers.filter(v => v.debit > 0).length} borç fişi
+                    </p>
+                  </div>
+                  <div className="bg-red-200 p-2 md:p-3 rounded-lg">
+                    <div className="text-red-600 font-bold text-lg md:text-xl">B</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-green-50 to-green-100 shadow-lg rounded-xl border-0">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs md:text-sm font-semibold text-green-600 uppercase tracking-wider">Toplam Alacak</p>
+                    <p className="text-xl md:text-2xl lg:text-3xl font-bold text-green-800 mt-1 md:mt-2">
+                      ₺{stats.totalCredit.toLocaleString('tr-TR')}
+                    </p>
+                    <p className="text-xs text-green-600 mt-1">
+                      {filteredVouchers.filter(v => v.credit > 0).length} alacak fişi
+                    </p>
+                  </div>
+                  <div className="bg-green-200 p-2 md:p-3 rounded-lg">
+                    <div className="text-green-600 font-bold text-lg md:text-xl">A</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 shadow-lg rounded-xl border-0">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs md:text-sm font-semibold text-blue-600 uppercase tracking-wider">Net Bakiye</p>
+                    <p className="text-xl md:text-2xl lg:text-3xl font-bold text-blue-800 mt-1 md:mt-2">
+                      ₺{stats.balance.toLocaleString('tr-TR')}
+                    </p>
+                    <Badge className={`mt-2 ${stats.balanceType === 'Alacak Bakiyesi' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                      {stats.balanceType}
+                    </Badge>
+                  </div>
+                  <div className="bg-blue-200 p-2 md:p-3 rounded-lg">
+                    <BarChart3 className="w-5 h-5 md:w-6 md:h-6 text-blue-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-yellow-50 to-yellow-100 shadow-lg rounded-xl border-0">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="text-xs md:text-sm font-semibold text-yellow-600 uppercase tracking-wider">Firma & Fiş</p>
+                    <p className="text-xl md:text-2xl lg:text-3xl font-bold text-yellow-800 mt-1 md:mt-2">
+                      {stats.totalFirms} Firma
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      {stats.totalVouchers} toplam fiş
+                    </p>
+                  </div>
+                  <div className="bg-yellow-200 p-2 md:p-3 rounded-lg">
+                    <Building className="w-5 h-5 md:w-6 md:h-6 text-yellow-600" />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* İkinci Satır Kartlar */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Fiş Tipleri */}
+            <Card>
+              <CardContent className="p-4 md:p-6">
+                <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+                  <FileText className="w-4 h-4 md:w-5 md:h-5" />
+                  Fiş Tipleri ({voucherTypes.length})
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {Object.entries(stats.voucherByType)
+                    .sort(([,a], [,b]) => b - a)
+                    .map(([type, count]) => (
+                      <div key={type} className="flex justify-between items-center p-2 md:p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm md:text-base truncate">{getVoucherTypeName(type)}</p>
+                          <p className="text-xs text-gray-500 truncate">Tip: {type}</p>
+                        </div>
+                        <Badge variant="outline" className="font-bold text-xs md:text-sm shrink-0 ml-2">
+                          {count}
+                        </Badge>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Firmalar ve Tesisleri */}
+            <Card>
+              <CardContent className="p-4 md:p-6">
+                <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+                  <Building className="w-4 h-4 md:w-5 md:h-5" />
+                  Firmalar ({firms.length})
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {firms.map((firm) => (
+                    <div key={firm.COMPANY} className="p-2 md:p-3 hover:bg-gray-50 rounded-lg transition">
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0 flex-1">
+                          <p className="font-medium text-sm md:text-base truncate">{firm.FIRMA}</p>
+                          <p className="text-xs text-gray-500 truncate">
+                            Kod: {firm.COMPANY}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="ml-2 text-xs shrink-0">
+                          {firm.TESISLER?.length || 1} tesis
+                        </Badge>
+                      </div>
+                      {/* Tesisleri göster */}
+                      <div className="mt-2 space-y-1">
+                        {firm.TESISLER?.slice(0, 2).map((tesis, idx) => (
+                          <div key={idx} className="flex items-center gap-1 text-xs text-gray-500">
+                            <MapPin className="w-3 h-3" />
+                            <span className="truncate">
+                              {tesis.TESIS} ({tesis.PLANT})
+                            </span>
+                          </div>
+                        ))}
+                        {firm.TESISLER && firm.TESISLER.length > 2 && (
+                          <div className="text-xs text-gray-400">
+                            + {firm.TESISLER.length - 2} tesis daha...
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Top Hesaplar */}
+            <Card>
+              <CardContent className="p-4 md:p-6">
+                <h3 className="font-semibold text-base md:text-lg mb-3 md:mb-4 flex items-center gap-2">
+                  <Hash className="w-4 h-4 md:w-5 md:h-5" />
+                  En Aktif Hesaplar
+                </h3>
+                <div className="space-y-2 max-h-64 overflow-y-auto pr-2">
+                  {stats.topAccounts.map((account, index) => (
+                    <div key={account.name} className="p-2 md:p-3 hover:bg-gray-50 rounded-lg transition">
+                      <div className="flex justify-between items-center">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-gray-400">#{index + 1}</span>
+                            <p className="font-medium text-sm md:text-base truncate">{account.name}</p>
+                          </div>
+                          <p className="text-xs text-gray-500">{account.count} işlem</p>
+                        </div>
+                        <div className="text-right shrink-0 ml-2">
+                          <p className="font-bold text-sm md:text-base">₺{account.total.toLocaleString('tr-TR')}</p>
+                        </div>
+                      </div>
+                      <div className="mt-1 w-full h-1 bg-gray-200 rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-blue-500 rounded-full"
+                          style={{ width: `${(account.total / (stats.topAccounts[0]?.total || 1)) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* Fiş Listesi Tab'ı */}
+        <TabsContent value="vouchers" className="space-y-6">
+          <Card>
+            <CardContent className="p-0">
+              <div className="p-4 md:p-6 border-b bg-gray-50">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <h3 className="font-semibold text-base md:text-lg">
+                      Fiş Listesi
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Gösterilen: {filteredVouchers.length} / {vouchers.length} kayıt
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Select 
+                      value={filters.acctype} 
+                      onValueChange={(value) => setFilters({...filters, acctype: value})}
+                    >
+                      <SelectTrigger className="w-[180px] text-sm">
+                        <SelectValue placeholder="Hesap Tipi" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tüm Hesap Tipleri</SelectItem>
+                        <SelectItem value="1">Müşteri</SelectItem>
+                        <SelectItem value="2">Tedarikçi</SelectItem>
+                        <SelectItem value="3">Genel</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-100 border-b">
+                    <tr>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm">Fiş Bilgisi</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden md:table-cell">Firma & Tesis</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm">Tarih</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden lg:table-cell">Hesap</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm">Borç</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm">Alacak</th>
+                      <th className="p-3 md:p-4 text-left font-semibold text-gray-700 text-xs md:text-sm hidden sm:table-cell">Durum</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredVouchers.slice(0, 50).map((v) => {
+                      const firmInfo = getFirmWithPlants(v.company)
+                      return (
+                        <tr
+                          key={v.id}
+                          className={`border-t hover:bg-gray-50 transition ${
+                            v.postway === "1" ? "bg-green-50" : ""
+                          }`}
+                        >
+                          <td className="p-3 md:p-4">
+                            <div className="font-medium text-sm md:text-base">{`${v.docType}-${v.docNo}`}</div>
+                            <div className="text-xs text-gray-500 flex items-center gap-1 mt-1">
+                              <Badge variant="outline" className="text-xs">
+                                {v.docType}
+                              </Badge>
+                              <span>Madde: {v.docItem}</span>
+                            </div>
+                            <div className="md:hidden text-xs text-gray-500 mt-1">
+                              {firmInfo.name}
+                            </div>
+                            <div className="lg:hidden text-xs text-gray-500 mt-1 truncate max-w-[200px]">
+                              {v.accountName}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 hidden md:table-cell">
+                            <div className="font-medium text-sm md:text-base">{firmInfo.name}</div>
+                            <div className="text-xs text-gray-500">Kod: {v.company}</div>
+                            {firmInfo.plants.length > 0 && (
+                              <div className="text-xs text-gray-400 flex items-center gap-1 mt-1">
+                                <MapPin className="w-3 h-3" />
+                                <span className="truncate">
+                                  {firmInfo.plants[0].TESIS} ({firmInfo.plants[0].PLANT})
+                                </span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <div className="font-medium text-sm md:text-base">{v.date}</div>
+                            <div className="text-xs text-gray-500">
+                              {getAccountTypeName(v.acctype)}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 hidden lg:table-cell">
+                            <div className="font-medium text-sm md:text-base truncate max-w-[200px]">{v.accountName}</div>
+                            <div className="text-xs text-gray-500 truncate max-w-[200px]">{v.account}</div>
+                            <div className="text-xs text-gray-400 truncate max-w-[200px]">{v.description}</div>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <div className={`font-bold ${v.debit ? "text-red-700" : "text-gray-400"} text-sm md:text-base`}>
+                              {v.debit ? `₺${v.debit.toLocaleString('tr-TR')}` : "—"}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4">
+                            <div className={`font-bold ${v.credit ? "text-green-700" : "text-gray-400"} text-sm md:text-base`}>
+                              {v.credit ? `₺${v.credit.toLocaleString('tr-TR')}` : "—"}
+                            </div>
+                          </td>
+                          <td className="p-3 md:p-4 hidden sm:table-cell">
+                            {v.postway === "1" ? (
+                              <Badge className="bg-green-100 text-green-800 text-xs">
+                                Kayıtlı
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-xs">
+                                Beklemede
+                              </Badge>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {filteredVouchers.length === 0 && (
+                <div className="p-8 text-center text-gray-500">
+                  <FileText className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                  <p>Filtrelere uygun fiş bulunamadı.</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setFilters({
+                      docType: "all",
+                      company: "all",
+                      search: "",
+                      dateRange: "7",
+                      acctype: "all"
+                    })}
+                  >
+                    Filtreleri Temizle
+                  </Button>
+                </div>
+              )}
+
+              {filteredVouchers.length > 50 && (
+                <div className="p-4 border-t text-center text-gray-500 text-sm">
+                  İlk 50 kayıt gösteriliyor. Toplam {filteredVouchers.length} kayıt bulundu.
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Analiz Tab'ı */}
+        <TabsContent value="analysis" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Firma Bazlı Dağılım */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Building className="w-5 h-5" />
+                  Firma Bazlı Fiş Dağılımı
+                </h3>
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                  {Object.entries(stats.voucherByCompany)
+                    .sort(([,a], [,b]) => b - a)
+                    .map(([company, count]) => {
+                      const firmInfo = getFirmWithPlants(company)
+                      return (
+                        <div key={company} className="p-3 hover:bg-gray-50 rounded-lg transition">
+                          <div className="flex justify-between items-center">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-medium">{firmInfo.name}</p>
+                              <p className="text-sm text-gray-500">
+                                Kod: {company} • {firmInfo.plants.length} tesis
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <Badge className="bg-blue-100 text-blue-800">
+                                {count} fiş
+                              </Badge>
+                              <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div 
+                                  className="h-full bg-blue-500 rounded-full"
+                                  style={{ width: `${(count / Math.max(...Object.values(stats.voucherByCompany))) * 100}%` }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                          {/* Tesisleri göster */}
+                          {firmInfo.plants.length > 0 && (
+                            <div className="mt-2 text-xs text-gray-500 flex flex-wrap gap-2">
+                              {firmInfo.plants.slice(0, 3).map((plant, idx) => (
+                                <Badge key={idx} variant="outline" className="text-xs">
+                                  {plant.TESIS}
+                                </Badge>
+                              ))}
+                              {firmInfo.plants.length > 3 && (
+                                <Badge variant="outline" className="text-xs">
+                                  +{firmInfo.plants.length - 3} tesis daha
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Günlük Dağılım */}
+            <Card>
+              <CardContent className="p-6">
+                <h3 className="font-semibold text-lg mb-4 flex items-center gap-2">
+                  <Calendar className="w-5 h-5" />
+                  Günlük Fiş Dağılımı
+                </h3>
+                <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
+                  {Object.entries(stats.voucherByDay)
+                    .sort(([a], [b]) => new Date(b).getTime() - new Date(a).getTime())
+                    .slice(0, 15)
+                    .map(([date, count]) => (
+                      <div key={date} className="p-3 hover:bg-gray-50 rounded-lg transition">
+                        <div className="flex justify-between items-center">
+                          <div>
+                            <p className="font-medium">{date}</p>
+                            <p className="text-sm text-gray-500">
+                              {new Date(date).toLocaleDateString('tr-TR', { weekday: 'long' })}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Badge className="bg-purple-100 text-purple-800">
+                              {count} fiş
+                            </Badge>
+                            <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-purple-500 rounded-full"
+                                style={{ width: `${(count / Math.max(...Object.values(stats.voucherByDay))) * 100}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* İstatistik Özet */}
+          <Card>
+            <CardContent className="p-6">
+              <h3 className="font-semibold text-lg mb-4">İstatistik Özet</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">Ortalama Fiş Tutarı</p>
+                  <p className="text-xl font-bold">
+                    ₺{((stats.totalDebit + stats.totalCredit) / stats.totalVouchers || 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">Borç/Alacak Oranı</p>
+                  <p className="text-xl font-bold">
+                    {stats.totalCredit > 0 ? (stats.totalDebit / stats.totalCredit).toFixed(2) : "∞"}:1
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">Günlük Ort. Fiş</p>
+                  <p className="text-xl font-bold">
+                    {(stats.totalVouchers / parseInt(filters.dateRange || "30")).toFixed(1)}
+                  </p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500">Toplam Tesis</p>
+                  <p className="text-xl font-bold">
+                    {firms.reduce((sum, firm) => sum + (firm.TESISLER?.length || 1), 0)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+
+      {/* Footer */}
+      <div className="text-center text-xs text-gray-500 pt-4 border-t">
+        <p>Son Güncelleme: {new Date().toLocaleDateString('tr-TR', { 
+          day: '2-digit', 
+          month: '2-digit', 
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}</p>
+        <p className="mt-1">
+          H&R Tomorrow Muhasebe Sistemi • {vouchers.length} fiş • {firms.length} firma • {firms.reduce((sum, firm) => sum + (firm.TESISLER?.length || 1), 0)} tesis
+          <br />
+          <span className="text-blue-600">Filtrelenmiş: {filteredVouchers.length} fiş ({((filteredVouchers.length / vouchers.length) * 100).toFixed(1)}%)</span>
+        </p>
+      </div>
+    </div>
+  )
+}
