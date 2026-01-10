@@ -17,9 +17,9 @@ type User = {
   office: string | null
   managerid: string | null
   subFirm: string | null
-  subFirmid: string | null
+  subFirmid:  string | null
   userprofile: 'GELISTIRME' | 'WEB' | null
-  dbName?: string
+  dbName?:  string
   dbPort?: number
   apiBaseUrl?: string
 }
@@ -35,7 +35,7 @@ type AuthContextType = {
   user: User | null
   isAuthenticated: boolean
   isLoading: boolean
-  login: (username: string, password: string) => Promise<void>
+  login: (username: string, password:  string) => Promise<void>
   logout: () => Promise<void>
   userRole: 'GELISTIRME' | 'WEB' | null
   failedAttempts: FailedAttempt[]
@@ -46,7 +46,7 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({ children }: { children:  React.ReactNode }) {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const stored = localStorage.getItem("failedLoginAttempts")
-      if (stored) setFailedAttempts(JSON.parse(stored))
+      if (stored) setFailedAttempts(JSON. parse(stored))
     } catch (e) {
       // Silently fail
     }
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const attempt = failedAttempts.find(a => a.username === username)
     if (!attempt || !attempt.blockedUntil) return null
     const remaining = attempt.blockedUntil - Date.now()
-    return remaining > 0 ? remaining : null
+    return remaining > 0 ? remaining :  null
   }
 
   const getRemainingAttempts = (username: string): number => {
@@ -107,8 +107,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             : a
         )
       } else {
-        const blockedUntil = 1 >= MAX_FAILED_ATTEMPTS ? Date.now() + BLOCK_DURATION : null
-        return [...prev, { username, attempts: 1, lastAttempt: Date.now(), blockedUntil }]
+        const blockedUntil = 1 >= MAX_FAILED_ATTEMPTS ?  Date.now() + BLOCK_DURATION : null
+        return [... prev, { username, attempts: 1, lastAttempt: Date.now(), blockedUntil }]
       }
     })
   }
@@ -143,11 +143,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
           }
 
-          if (userData?.userprofile) {
+          if (userData?. userprofile) {
             const currentPath = window.location.pathname;
-            if (userData.userprofile === "GELISTIRME" && currentPath.startsWith("/mobile-app")) {
+            if (userData.userprofile === "GELISTIRME" && currentPath. startsWith("/mobile-app")) {
               router.replace("/dashboard");
-            } else if (userData.userprofile === "WEB" && currentPath.startsWith("/dashboard")) {
+            } else if (userData. userprofile === "WEB" && currentPath.startsWith("/dashboard")) {
               router.replace("/mobile-app");
             }
           }
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = async (username: string, password: string) => {
     if (isLoggingIn) {
-      throw new Error("Giriş işlemi zaten devam ediyor. Lütfen bekleyin.");
+      throw new Error("Giriş işlemi zaten devam ediyor.  Lütfen bekleyin.");
     }
     
     setIsLoggingIn(true);
@@ -177,15 +177,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (isUserBlocked(username)) {
         const remainingTime = getRemainingTime(username);
         if (remainingTime) {
-          const minutes = Math.ceil(remainingTime / (60 * 1000));
-          throw new Error(`Hesabınız ${minutes} dakika süreyle bloke edilmiştir.`);
+          const minutes = Math. ceil(remainingTime / (60 * 1000));
+          throw new Error(`Hesabınız ${minutes} dakika süreyle bloke edilmiştir. `);
         }
       }
 
+      // 1. ADIM: User Lookup - Kullanıcı bilgilerini al
       const userLookupResponse = await fetch('/api/auth/user-lookup', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username }),
+        body: JSON. stringify({ username }),
         signal: AbortSignal.timeout(10000)
       });
 
@@ -200,7 +201,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(lookupData.message || "Kullanıcı bulunamadı.");
       }
 
-      const userDataFromApi = lookupData.user || lookupData;
+      const userDataFromApi = lookupData. user || lookupData;
       
       const dbName = userDataFromApi.dbName || lookupData.dbName;
       const dbPort = userDataFromApi.dbPort || lookupData.dbPort || 3159;
@@ -211,16 +212,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error("Veritabanı adı bulunamadı.");
       }
 
-      const authUrl = `${apiBaseUrl}/butunbiApi/api/fin/auth`;
-      
-      const authResponse = await fetch(authUrl, {
+      // 2. ADIM: Login - Kendi API route'umuza istek at (Vercel proxy)
+      const authResponse = await fetch('/api/auth/login', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ 
+          username, 
+          password,
+          dbPort  // dbPort'u gönderiyoruz ki route hangi porta bağlanacağını bilsin
+        }),
         signal: AbortSignal.timeout(15000)
       });
 
-      let authData: any;
+      let authData:  any;
       try {
         authData = await authResponse.json();
       } catch {
@@ -229,10 +233,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (!authResponse.ok) {
         if (authResponse.status === 401) {
-          throw new Error("Şifre hatalı. Lütfen tekrar deneyin.");
+          throw new Error("Şifre hatalı.  Lütfen tekrar deneyin.");
         }
         
-        // Daha kullanıcı dostu hata mesajları
         if (authResponse.status === 404) {
           throw new Error("Kullanıcı bulunamadı.");
         }
@@ -240,11 +243,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (authResponse.status === 500) {
           throw new Error("Sunucu hatası. Lütfen daha sonra tekrar deneyin.");
         }
+
+        if (authResponse.status === 503) {
+          throw new Error("API sunucusuna bağlanılamadı. Lütfen tekrar deneyin.");
+        }
         
-        throw new Error(`Giriş hatası (${authResponse.status}). Lütfen tekrar deneyin.`);
+        throw new Error(authData?.message || `Giriş hatası (${authResponse.status}). Lütfen tekrar deneyin.`);
       }
 
-      if (authData?.isSuccess !== true) {
+      // Route'tan gelen yanıtı kontrol et (success field)
+      if (authData?.success !== true) {
         throw new Error(authData?.message || "Giriş başarısız. Lütfen tekrar deneyin.");
       }
 
@@ -256,15 +264,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username
       });
 
+      // Route'tan gelen user objesini kullan
       const userData: User = {
-        username: authData?.username ?? username,
-        persid: authData?.sicil ?? authData?.persid ?? null,
-        display: authData?.display ?? authData?.username ?? username,
-        ismanager: authData?.ismanager ?? 0,
-        office: authData?.office ?? null,
-        managerid: authData?.managerid ?? null,
-        subFirm: authData?.subFirm ?? null,
-        subFirmid: authData?.subFirmid ?? null,
+        username: authData?.user?.username ?? username,
+        persid: authData?.user?.sicil ?? null,
+        display:  authData?.user?.displayName ??  username,
+        ismanager:  0,
+        office: null,
+        managerid: null,
+        subFirm:  null,
+        subFirmid: null,
         userprofile: userProfile as 'GELISTIRME' | 'WEB' | null,
         dbName,
         dbPort,
@@ -299,7 +308,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (remaining <= 0) {
         const remainingTime = getRemainingTime(username);
         const minutes = remainingTime ? Math.ceil(remainingTime / (60 * 1000)) : 15;
-        throw new Error(`Çok fazla hatalı deneme. Hesabınız ${minutes} dakika bloke.`);
+        throw new Error(`Çok fazla hatalı deneme.  Hesabınız ${minutes} dakika bloke. `);
       }
       
       if (err?.name === 'AbortError' || errorMessage.includes('timeout')) {
@@ -377,7 +386,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (renew) {
       const events = ["mousemove", "keydown", "mousedown", "touchstart", "scroll"];
-      events.forEach(e => window.removeEventListener(e, renew as EventListener));
+      events.forEach(e => window. removeEventListener(e, renew as EventListener));
       renewRef.current = undefined;
     }
 
@@ -387,7 +396,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (activityTimerRef.current) {
-      clearInterval(activityTimerRef.current);
+      clearInterval(activityTimerRef. current);
       activityTimerRef.current = null;
     }
   }
