@@ -7,7 +7,7 @@ export async function POST(request:  NextRequest) {
   try {
     const { username, password, dbPort } = await request.json();
     const port = dbPort || 3089;
-    const authUrl = `http://ik.hominum.info:${port}/butunbiApi/api/fin/auth`;
+    const authUrl = `https://ik.hominum.info:${port}/butunbiApi/api/fin/auth`;
     
     console.log('=== DEBUG AUTH ===');
     console.log('URL:', authUrl);
