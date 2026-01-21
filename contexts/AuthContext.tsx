@@ -206,7 +206,7 @@ export function AuthProvider({ children }: { children:  React.ReactNode }) {
       const dbName = userDataFromApi.dbName || lookupData.dbName;
       const dbPort = userDataFromApi.dbPort || lookupData. dbPort || 3159;
       const userProfile = userDataFromApi.userProfile || userDataFromApi.userprofile || 'WEB';
-      const apiBaseUrl = lookupData.apiBaseUrl || `http://ik.hominum.info:${dbPort}`;
+      const apiBaseUrl = lookupData.apiBaseUrl || `https://ik.hominum.info:${dbPort}`;
 
       if (!dbName) {
         throw new Error("Veritabanı adı bulunamadı.");
