@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     const port = dbPort || 3089;
-    const authUrl = `http://ik.hominum.info:${port}/butunbiApi/api/fin/auth`;
+    const authUrl = `https://ik.hominum.info:${port}/butunbiApi/api/fin/auth`;
     
     console.log('Auth URL:', authUrl);
     

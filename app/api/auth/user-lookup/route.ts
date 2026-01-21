@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
       }
 
       const dbPort = userData.dbPort || 3159;
-      const apiBaseUrl = `http://ik.hominum.info:${dbPort}`;
+      const apiBaseUrl = `https://ik.hominum.info:${dbPort}`;
       
       return NextResponse.json({
         success: true,
