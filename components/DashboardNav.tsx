@@ -7,7 +7,7 @@ import {
   Home, BarChart3, ShoppingCart, Users, CreditCard, 
   Settings, LogOut, Menu, X, 
   Crown, Rocket, ShieldCheck, 
-  ChevronRight
+  ChevronRight, Factory
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -15,9 +15,10 @@ import { motion, AnimatePresence } from 'framer-motion'
 const navItems = [
   { name: 'Ana Sayfa', icon: Home, path: '/dashboard', color: 'blue' },
   { name: 'Finans', icon: BarChart3, path: '/dashboard/finance', color: 'emerald' },
-  { name: 'Satın Alma', icon: ShoppingCart, path: '/dashboard/purchase', color: 'amber' },
+  { name: 'Satın Alma', icon:  ShoppingCart, path: '/dashboard/purchase', color: 'amber' },
   { name: 'İK', icon: Users, path: '/dashboard/hr', color: 'purple' },
   { name: 'Banka', icon: CreditCard, path: '/dashboard/banking', color: 'cyan' },
+  { name: 'Üretim', icon:  Factory, path: '/dashboard/production', color:  'rose' },
 ]
 
 export default function DashboardNav() {
@@ -31,7 +32,7 @@ export default function DashboardNav() {
 
   return (
     <>
-      {/* 1. MOBIL TOP BAR - Şık ve Ferah Hali (Geri Döndü) */}
+      {/* 1. MOBIL TOP BAR */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-[110] px-6 h-20 flex items-center justify-between bg-slate-900/90 backdrop-blur-2xl border-b border-white/10 shadow-2xl">
         <div className="flex items-center gap-3">
            <div className="p-2 bg-gradient-to-br from-blue-600 to-cyan-500 rounded-xl shadow-lg shadow-blue-500/20">
@@ -46,8 +47,8 @@ export default function DashboardNav() {
         </div>
         
         <button 
-          onClick={() => setIsOpen(!isOpen)}
-          className="p-2.5 rounded-2xl bg-white/5 border border-white/10 active:scale-90 transition-all shadow-inner"
+          onClick={() => setIsOpen(! isOpen)}
+          className="p-2. 5 rounded-2xl bg-white/5 border border-white/10 active:scale-90 transition-all shadow-inner"
         >
           {isOpen ? <X className="text-white h-6 w-6" /> : <Menu className="text-white h-6 w-6" />}
         </button>
@@ -66,7 +67,7 @@ export default function DashboardNav() {
         )}
       </AnimatePresence>
 
-      {/* 3. SIDEBAR (İçerik) */}
+      {/* 3. SIDEBAR */}
       <aside className={`
         fixed inset-y-0 left-0 z-[130] w-[85vw] sm:w-[320px] lg:w-72 xl:w-80
         bg-slate-900 border-r border-white/10
@@ -91,12 +92,12 @@ export default function DashboardNav() {
           </div>
         </div>
 
-        {/* USER PROFILE - Türkçe Karakter Fix Korundu */}
+        {/* USER PROFILE */}
         <div className="px-6 mb-6">
           <div className="p-4 rounded-2xl bg-white/5 border border-white/10 shadow-xl overflow-hidden">
             <div className="flex items-center gap-3 mb-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center text-white font-bold text-xl uppercase">
-                {user?.username?.[0]?.toLocaleUpperCase('tr-TR') || 'A'}
+                {user?.username? .[0]?.toLocaleUpperCase('tr-TR') || 'A'}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-extrabold text-white truncate leading-tight">
@@ -138,7 +139,7 @@ export default function DashboardNav() {
                   <Icon className="h-4 w-4" />
                 </div>
                 <span className="text-sm font-bold tracking-wide">{item.name}</span>
-                {isActive && <motion.div layoutId="activeHighlight" className="absolute left-0 w-1.5 h-6 bg-blue-500 rounded-full" />}
+                {isActive && <motion.div layoutId="activeHighlight" className="absolute left-0 w-1. 5 h-6 bg-blue-500 rounded-full" />}
               </Link>
             )
           })}
@@ -153,8 +154,7 @@ export default function DashboardNav() {
         </div>
       </aside>
 
-      {/* 4. KRİTİK ÇÖZÜM: SAYFAYI AŞAĞIYA İTEN BOŞLUK */}
-      {/* h-24 ekleyerek sayfa içeriğinin bu şık header'ın altından başlamasını sağladık */}
+      {/* 4. SAYFAYI AŞAĞIYA İTEN BOŞLUK */}
       <div className="h-24 lg:hidden" /> 
       <div className="hidden lg:block lg:pl-72 xl:pl-80 transition-all" />
     </>

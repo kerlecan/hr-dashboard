@@ -1,380 +1,461 @@
-"use client";
+"use client"
 
-import React, { useState, useEffect, useMemo } from "react";
-import { usePathname } from "next/navigation";
-import Link from "next/link";
-import {
-  Rocket, Sparkles, Clock, ArrowLeft, Bell, Star, Zap, Code, Cpu, Layers, Shield,
-  CheckCircle2, Circle, ChevronRight, Home, Calendar, User, FileText, Building,
-  Award, Briefcase, TrendingUp, ShieldCheck, Settings, MessageSquare, BookOpen,
-  PieChart, Heart, Coffee, Hammer, Wrench, Cog, Terminal, GitBranch, Database,
-  Server, Wifi, Activity,
-} from "lucide-react";
+import { useState, useEffect, useCallback } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import Link from 'next/link'
+import { 
+  Calendar, 
+  Clock, 
+  FileText, 
+  CheckCircle, 
+  XCircle, 
+  AlertCircle,
+  ChevronRight,
+  Plus,
+  Filter,
+  Search,
+  Loader2,
+  Eye,
+  RefreshCw,
+  MoreVertical,
+  CalendarDays,
+  User,
+  Building,
+  Check,
+  Clock as TimeIcon,
+  BarChart,
+  TrendingUp,
+  ArrowUpRight,
+  ArrowDownRight
+} from 'lucide-react'
 
-const pageInfo:  Record<string, { title: string; icon: any; color: string; gradient: string; description: string; features: string[] }> = {
-  organization: {
-    title: "Organizasyon",
-    icon:  Building,
-    color: "text-blue-400",
-    gradient: "from-blue-500 to-cyan-500",
-    description: "Şirket yapısını ve organizasyon şemasını görüntüleyin",
-    features: ["Organizasyon Şeması", "Departman Yapısı", "Yönetici Hiyerarşisi", "Pozisyon Detayları"],
-  },
-  profile: {
-    title: "Özlük Bilgileri",
-    icon: User,
-    color: "text-emerald-400",
-    gradient:  "from-emerald-500 to-green-500",
-    description: "Kişisel ve özlük bilgilerinizi yönetin",
-    features:  ["Kişisel Bilgiler", "İletişim Bilgileri", "Acil Durum Kişileri", "Banka Bilgileri"],
-  },
-  documents: {
-    title: "Özlük Evraklarım",
-    icon: FileText,
-    color: "text-amber-400",
-    gradient: "from-amber-500 to-orange-500",
-    description:  "Tüm özlük evraklarınıza tek yerden erişin",
-    features:  ["Sözleşmeler", "Sertifikalar", "Kimlik Belgeleri", "Eğitim Belgeleri"],
-  },
-  requests: {
-    title: "Taleplerim",
-    icon: FileText,
-    color: "text-pink-400",
-    gradient: "from-pink-500 to-rose-500",
-    description:  "Talep oluşturun ve takip edin",
-    features:  ["İzin Talebi", "Avans Talebi", "Masraf Talebi", "Zimmet Talebi"],
-  },
-  trainings: {
-    title: "Eğitimler",
-    icon: BookOpen,
-    color: "text-violet-400",
-    gradient: "from-violet-500 to-purple-500",
-    description:  "Eğitim programlarını takip edin",
-    features:  ["Zorunlu Eğitimler", "Online Eğitimler", "Sertifika Programları", "Eğitim Geçmişi"],
-  },
-  assets: {
-    title: "Zimmetlerim",
-    icon: Briefcase,
-    color: "text-cyan-400",
-    gradient: "from-cyan-500 to-teal-500",
-    description:  "Zimmetinizdeki varlıkları görüntüleyin",
-    features: ["Bilgisayar & Ekipman", "Araç Zimmetleri", "Kart & Anahtar", "Zimmet Geçmişi"],
-  },
-  performance: {
-    title: "Performans",
-    icon: TrendingUp,
-    color:  "text-orange-400",
-    gradient: "from-orange-500 to-red-500",
-    description:  "Performans değerlendirmelerinizi takip edin",
-    features: ["Hedef Takibi", "360° Değerlendirme", "Yetkinlik Analizi", "Performans Geçmişi"],
-  },
-  "e-signature": {
-    title: "Mobil İmza",
-    icon: ShieldCheck,
-    color: "text-red-400",
-    gradient: "from-red-500 to-pink-500",
-    description: "Belgeleri mobil imza ile onaylayın",
-    features:  ["Belge İmzalama", "İmza Geçmişi", "Onay Bekleyenler", "İmza Doğrulama"],
-  },
-  settings: {
-    title: "Ayarlar",
-    icon: Settings,
-    color: "text-slate-400",
-    gradient: "from-slate-500 to-zinc-500",
-    description: "Uygulama ayarlarınızı özelleştirin",
-    features: ["Bildirim Ayarları", "Tema Seçimi", "Dil Ayarları", "Gizlilik"],
-  },
-  leaves: {
-    title: "İzinlerim",
-    icon: Calendar,
-    color: "text-green-400",
-    gradient: "from-green-500 to-emerald-500",
-    description: "İzin haklarınızı ve taleplerizi yönetin",
-    features:  ["İzin Bakiyesi", "İzin Talebi", "İzin Geçmişi", "İzin Takvimi"],
-  },
-};
-
-function FloatingParticles() {
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {[...Array(20)].map((_, i) => (
-        <div
-          key={i}
-          className="absolute animate-float"
-          style={{
-            left: `${Math.random() * 100}%`,
-            top: `${Math.random() * 100}%`,
-            animationDelay: `${Math.random() * 5}s`,
-            animationDuration: `${5 + Math.random() * 10}s`,
-          }}
-        >
-          <div className={`w-1 h-1 rounded-full ${i % 3 === 0 ? "bg-cyan-400/30" : i % 3 === 1 ? "bg-purple-400/30" : "bg-pink-400/30"}`} />
-        </div>
-      ))}
-    </div>
-  );
+interface RequestItem {
+  REQUESTID: string
+  REQUESTTYPE: string
+  REQUESTSTATUS: string
+  CURRENTSTEP: number
+  CREATEDAT: string
 }
 
-function SpinningRings() {
-  return (
-    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-      <div className="relative w-64 h-64">
-        <div className="absolute inset-0 rounded-full border border-cyan-500/20 animate-spin-slow" />
-        <div className="absolute inset-4 rounded-full border border-purple-500/20 animate-spin-slow" style={{ animationDirection: "reverse", animationDuration: "15s" }} />
-        <div className="absolute inset-8 rounded-full border border-pink-500/20 animate-spin-slow" style={{ animationDuration: "20s" }} />
-      </div>
-    </div>
-  );
+interface RequestsResponse {
+  success: boolean
+  total: number
+  data: RequestItem[]
 }
 
-function ProgressBar({ progress, gradient }: { progress: number; gradient: string }) {
-  return (
-    <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-      <div className={`h-full bg-gradient-to-r ${gradient} rounded-full transition-all duration-1000 ease-out relative`} style={{ width: `${progress}%` }}>
-        <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 animate-shimmer" />
-      </div>
-    </div>
-  );
-}
+export default function MyRequestsPage() {
+  const { user } = useAuth()
+  const [darkMode, setDarkMode] = useState(true)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [requests, setRequests] = useState<RequestItem[]>([])
+  const [filter, setFilter] = useState<string>('ALL')
+  const [search, setSearch] = useState('')
 
-function BuildSteps({ features, gradient }:  { features: string[]; gradient:  string }) {
-  const [activeStep, setActiveStep] = useState(0);
   useEffect(() => {
-    const interval = setInterval(() => setActiveStep((prev) => (prev + 1) % features.length), 2000);
-    return () => clearInterval(interval);
-  }, [features.length]);
+    const stored = localStorage.getItem('darkMode')
+    const isDark = stored === 'true' || (stored === null && true)
+    setDarkMode(isDark)
+    fetchRequests()
+  }, [])
+
+  const fetchRequests = useCallback(async () => {
+    if (!user) return
+    
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const dbName = (user as any)?.dbName || 'HOMINUM'
+      const persid = (user as any)?.persid
+      
+      if (!persid) {
+        throw new Error('Kullanıcı bilgileri alınamadı')
+      }
+      
+      const res = await fetch(`/api/mobweb/request/my?dbName=${encodeURIComponent(dbName)}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ persid }),
+      })
+      
+      const result: RequestsResponse = await res.json()
+      
+      if (!result.success) {
+        throw new Error(result.message || 'Talepler alınamadı')
+      }
+      
+      setRequests(result.data || [])
+    } catch (err: any) {
+      console.error('Talepler alınamadı:', err)
+      setError(err.message || 'Talepler yüklenirken bir hata oluştu')
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'APPROVED':
+        return {
+          bg: darkMode ? 'bg-emerald-500/20' : 'bg-emerald-100',
+          text: darkMode ? 'text-emerald-300' : 'text-emerald-700',
+          border: darkMode ? 'border-emerald-500/40' : 'border-emerald-300',
+          icon: CheckCircle
+        }
+      case 'REJECTED':
+        return {
+          bg: darkMode ? 'bg-red-500/20' : 'bg-red-100',
+          text: darkMode ? 'text-red-300' : 'text-red-700',
+          border: darkMode ? 'border-red-500/40' : 'border-red-300',
+          icon: XCircle
+        }
+      case 'PENDING':
+        return {
+          bg: darkMode ? 'bg-amber-500/20' : 'bg-amber-100',
+          text: darkMode ? 'text-amber-300' : 'text-amber-700',
+          border: darkMode ? 'border-amber-500/40' : 'border-amber-300',
+          icon: Clock
+        }
+      case 'CANCELLED':
+        return {
+          bg: darkMode ? 'bg-slate-500/20' : 'bg-slate-100',
+          text: darkMode ? 'text-slate-300' : 'text-slate-700',
+          border: darkMode ? 'border-slate-500/40' : 'border-slate-300',
+          icon: XCircle
+        }
+      default:
+        return {
+          bg: darkMode ? 'bg-slate-500/20' : 'bg-slate-100',
+          text: darkMode ? 'text-slate-300' : 'text-slate-700',
+          border: darkMode ? 'border-slate-500/40' : 'border-slate-300',
+          icon: AlertCircle
+        }
+    }
+  }
+
+  const getTypeText = (type: string) => {
+    switch (type) {
+      case 'LEAVE': return 'İzin Talebi'
+      case 'OVERTIME': return 'Fazla Mesai'
+      case 'EXPENSE': return 'Masraf Talebi'
+      case 'ADVANCE': return 'Avans Talebi'
+      case 'DOCUMENT': return 'Evrak Talebi'
+      default: return type
+    }
+  }
+
+  const getTypeIcon = (type: string) => {
+    switch (type) {
+      case 'LEAVE': return Calendar
+      case 'OVERTIME': return Clock
+      case 'EXPENSE': return FileText
+      case 'ADVANCE': return TrendingUp
+      case 'DOCUMENT': return FileText
+      default: return FileText
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleDateString('tr-TR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })
+  }
+
+  const filteredRequests = requests.filter(item => {
+    const matchesFilter = filter === 'ALL' || item.REQUESTSTATUS === filter
+    const matchesSearch = search === '' || 
+      item.REQUESTID.toLowerCase().includes(search.toLowerCase()) ||
+      getTypeText(item.REQUESTTYPE).toLowerCase().includes(search.toLowerCase())
+    return matchesFilter && matchesSearch
+  })
+
+  const stats = {
+    total: requests.length,
+    pending: requests.filter(r => r.REQUESTSTATUS === 'PENDING').length,
+    approved: requests.filter(r => r.REQUESTSTATUS === 'APPROVED').length,
+    rejected: requests.filter(r => r.REQUESTSTATUS === 'REJECTED').length,
+  }
 
   return (
-    <div className="space-y-3">
-      {features.map((feature, index) => (
-        <div
-          key={index}
-          className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-500 ${
-            index < activeStep ? "bg-emerald-500/20 border border-emerald-500/30" : index === activeStep ? `bg-gradient-to-r ${gradient} bg-opacity-20 border border-white/20 scale-105` : "bg-white/5 border border-white/10"
-          }`}
-        >
-          <div className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-500 ${index < activeStep ? "bg-emerald-500" : index === activeStep ? "bg-white/20 animate-pulse" : "bg-white/10"}`}>
-            {index < activeStep ? <CheckCircle2 className="w-4 h-4 text-white" /> : index === activeStep ? <Cog className="w-4 h-4 text-white animate-spin" /> : <Circle className="w-4 h-4 text-white/50" />}
-          </div>
-          <span className={`text-sm font-medium transition-all duration-500 ${index < activeStep ? "text-emerald-300" : index === activeStep ? "text-white" : "text-white/50"}`}>{feature}</span>
-          {index === activeStep && (
-            <div className="ml-auto flex items-center gap-1">
-              <span className="text-xs text-white/60">Geliştiriliyor</span>
-              <div className="flex gap-1">
-                <div className="w-1. 5 h-1.5 rounded-full bg-white animate-bounce" style={{ animationDelay: "0s" }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-white animate-bounce" style={{ animationDelay: "0.2s" }} />
-                <div className="w-1.5 h-1.5 rounded-full bg-white animate-bounce" style={{ animationDelay: "0.4s" }} />
-              </div>
+    <div className={`min-h-screen w-full transition-all duration-500 ${
+      darkMode 
+        ? 'bg-gradient-to-b from-slate-950 via-indigo-950/20 to-slate-950' 
+        : 'bg-gradient-to-b from-slate-50 via-blue-50 to-slate-50'
+    }`}>
+      <div className="px-5 pt-4 pb-24">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className={`text-2xl font-bold mb-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+            Taleplerim
+          </h1>
+          <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+            Oluşturduğunuz tüm taleplerin durumunu takip edin
+          </p>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+          <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Toplam</span>
+              <FileText className={`h-4 w-4 ${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
             </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function CodeAnimation() {
-  const [lines, setLines] = useState<string[]>([]);
-  const codeLines = ["import { createModule } from '@hrtomorrow/core'", "const module = await initializeFeatures()", "await connectDatabase({ secure: true })", "module.enableRealTimeSync()", "await module.deployToProduction()", "console.log('✨ Module ready!')"];
-  useEffect(() => {
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index < codeLines.length) { setLines((prev) => [...prev, codeLines[index]]); index++; } 
-      else { setLines([]); index = 0; }
-    }, 800);
-    return () => clearInterval(interval);
-  }, []);
-
-  return (
-    <div className="bg-slate-900/80 rounded-xl p-4 font-mono text-xs border border-white/10 overflow-hidden">
-      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/10">
-        <div className="w-3 h-3 rounded-full bg-red-500" />
-        <div className="w-3 h-3 rounded-full bg-yellow-500" />
-        <div className="w-3 h-3 rounded-full bg-green-500" />
-        <span className="ml-2 text-white/40">terminal</span>
-      </div>
-      <div className="space-y-1 min-h-[120px]">
-        {lines. map((line, index) => (
-          <div key={index} className="flex items-start gap-2 animate-fadeIn">
-            <span className="text-emerald-400">→</span>
-            <span className="text-cyan-300">{line}</span>
-          </div>
-        ))}
-        <div className="flex items-center gap-2">
-          <span className="text-emerald-400">→</span>
-          <span className="w-2 h-4 bg-white animate-blink" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export default function ComingSoonPage() {
-  const pathname = usePathname();
-  const [progress, setProgress] = useState(0);
-  const [email, setEmail] = useState("");
-  const [subscribed, setSubscribed] = useState(false);
-
-  const pageSlug = useMemo(() => {
-    const parts = pathname.split("/");
-    return parts[parts.length - 1] || "default";
-  }, [pathname]);
-
-  const currentPage = pageInfo[pageSlug] || {
-    title: "Yeni Özellik",
-    icon:  Rocket,
-    color: "text-cyan-400",
-    gradient: "from-cyan-500 to-blue-500",
-    description: "Yeni özellikler geliştiriliyor",
-    features: ["Tasarım", "Geliştirme", "Test", "Yayınlama"],
-  };
-
-  const PageIcon = currentPage.icon;
-
-  useEffect(() => {
-    const timer = setTimeout(() => setProgress(Math.floor(Math.random() * 30) + 45), 500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const handleSubscribe = () => {
-    if (email) { setSubscribed(true); setTimeout(() => setSubscribed(false), 3000); setEmail(""); }
-  };
-
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-950 via-indigo-950/40 to-slate-950 text-white pb-32 pt-4 relative overflow-hidden">
-      <FloatingParticles />
-      <SpinningRings />
-      <div className="absolute top-20 -left-32 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl animate-pulse" />
-      <div className="absolute bottom-40 -right-32 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: "1s" }} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-pink-500/10 rounded-full blur-3xl" />
-
-      <div className="relative z-10 px-5">
-        <Link href="/mobile-app" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 border border-white/10 hover:bg-white/20 transition-all duration-300 mb-6">
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-sm font-medium">Ana Sayfa</span>
-        </Link>
-
-        <div className="relative">
-          <div className={`absolute inset-0 bg-gradient-to-r ${currentPage.gradient} rounded-3xl blur-2xl opacity-20`} />
-          <div className="relative bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-white/10 overflow-hidden">
-            <div className={`bg-gradient-to-r ${currentPage. gradient} p-6 relative overflow-hidden`}>
-              <div className="absolute inset-0 bg-black/20" />
-              <div className="absolute top-0 right-0 w-40 h-40 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2" />
-              <div className="absolute bottom-0 left-0 w-32 h-32 bg-white/10 rounded-full translate-y-1/2 -translate-x-1/2" />
-              <div className="relative z-10 flex items-center gap-4">
-                <div className="p-4 bg-white/20 backdrop-blur-sm rounded-2xl">
-                  <PageIcon className="w-10 h-10 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black text-white">{currentPage.title}</h1>
-                  <p className="text-white/80 text-sm mt-1">{currentPage.description}</p>
-                </div>
-              </div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              {stats.total}
             </div>
-
-            <div className="p-6 space-y-6">
-              <div className="flex items-center justify-center">
-                <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/20 border border-amber-500/30 rounded-full">
-                  <Hammer className="w-4 h-4 text-amber-400 animate-bounce" />
-                  <span className="text-amber-300 font-bold text-sm">YAPIM AŞAMASINDA</span>
-                  <Wrench className="w-4 h-4 text-amber-400 animate-bounce" style={{ animationDelay: "0.2s" }} />
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-white/60">Geliştirme İlerlemesi</span>
-                  <span className={`font-bold bg-gradient-to-r ${currentPage. gradient} bg-clip-text text-transparent`}>%{progress}</span>
-                </div>
-                <ProgressBar progress={progress} gradient={currentPage.gradient} />
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-white/60 mb-3 flex items-center gap-2">
-                  <Layers className="w-4 h-4" />
-                  Gelecek Özellikler
-                </h3>
-                <BuildSteps features={currentPage.features} gradient={currentPage.gradient} />
-              </div>
-
-              <div>
-                <h3 className="text-sm font-bold text-white/60 mb-3 flex items-center gap-2">
-                  <Terminal className="w-4 h-4" />
-                  Canlı Geliştirme
-                </h3>
-                <CodeAnimation />
-              </div>
-
-              <div className="bg-white/5 rounded-2xl p-4 border border-white/10">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="p-2 bg-cyan-500/20 rounded-xl">
-                    <Bell className="w-5 h-5 text-cyan-400" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-white">Hazır Olunca Haber Ver</h4>
-                    <p className="text-xs text-white/50">Yayınlandığında bildirim alın</p>
-                  </div>
-                </div>
-                {subscribed ? (
-                  <div className="flex items-center justify-center gap-2 py-3 bg-emerald-500/20 rounded-xl border border-emerald-500/30">
-                    <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                    <span className="text-emerald-300 font-medium">Kaydınız alındı!</span>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <input type="email" placeholder="E-posta adresiniz" value={email} onChange={(e) => setEmail(e.target.value)} className="flex-1 px-4 py-2.5 bg-white/10 border border-white/10 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus: border-cyan-500/50 focus:ring-2 focus: ring-cyan-500/20 transition-all" />
-                    <button onClick={handleSubscribe} className={`px-5 py-2.5 bg-gradient-to-r ${currentPage.gradient} rounded-xl font-bold text-sm text-white hover:scale-105 active:scale-95 transition-all shadow-lg`}>Kayıt</button>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-center gap-6 pt-4 border-t border-white/10">
-                <div className="flex items-center gap-2 text-white/40 text-xs">
-                  <Coffee className="w-4 h-4" />
-                  <span>Takımımız çalışıyor</span>
-                </div>
-                <div className="flex items-center gap-2 text-white/40 text-xs">
-                  <Heart className="w-4 h-4 text-red-400" />
-                  <span>Sevgiyle yapılıyor</span>
-                </div>
-              </div>
+          </div>
+          
+          <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Bekleyen</span>
+              <Clock className={`h-4 w-4 ${darkMode ? 'text-amber-400' : 'text-amber-500'}`} />
+            </div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-amber-300' : 'text-amber-600'}`}>
+              {stats.pending}
+            </div>
+          </div>
+          
+          <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Onaylanan</span>
+              <CheckCircle className={`h-4 w-4 ${darkMode ? 'text-emerald-400' : 'text-emerald-500'}`} />
+            </div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-emerald-300' : 'text-emerald-600'}`}>
+              {stats.approved}
+            </div>
+          </div>
+          
+          <div className={`rounded-xl p-4 ${darkMode ? 'bg-white/5 border border-white/10' : 'bg-white border border-slate-200 shadow-sm'}`}>
+            <div className="flex items-center justify-between mb-2">
+              <span className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Reddedilen</span>
+              <XCircle className={`h-4 w-4 ${darkMode ? 'text-red-400' : 'text-red-500'}`} />
+            </div>
+            <div className={`text-2xl font-bold ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
+              {stats.rejected}
             </div>
           </div>
         </div>
 
-        <div className="mt-8">
-          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
-            <Rocket className="w-5 h-5 text-cyan-400" />
-            Yakında Gelecek Diğer Özellikler
-          </h3>
-          <div className="grid grid-cols-3 gap-3">
-            {Object.entries(pageInfo).filter(([key]) => key !== pageSlug).slice(0, 6).map(([key, info]) => {
-              const Icon = info.icon;
+        {/* Search and Filter */}
+        <div className="mb-6 space-y-4">
+          <div className="relative">
+            <Search className={`absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`} />
+            <input
+              type="text"
+              placeholder="Talep ara..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className={`w-full pl-12 pr-4 py-3 rounded-xl transition-all ${
+                darkMode 
+                  ? 'bg-slate-800/50 border border-slate-700 text-white placeholder-slate-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30' 
+                  : 'bg-white border border-slate-300 text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20'
+              }`}
+            />
+          </div>
+          
+          <div className="flex flex-wrap gap-2">
+            {['ALL', 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((status) => {
+              const isActive = filter === status
+              const statusColor = getStatusColor(status)
+              const StatusIcon = statusColor.icon
+              
               return (
-                <Link key={key} href={`/mobile-app/${key}`} className="p-3 bg-white/5 rounded-xl border border-white/10 hover:bg-white/10 transition-all duration-300 hover:scale-105 text-center">
-                  <div className={`p-2 bg-gradient-to-r ${info.gradient} rounded-lg w-fit mx-auto mb-2`}>
-                    <Icon className="w-5 h-5 text-white" />
-                  </div>
-                  <span className="text-xs font-medium text-white/70">{info.title}</span>
-                </Link>
-              );
+                <button
+                  key={status}
+                  onClick={() => setFilter(status)}
+                  className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${isActive ? 'scale-105 shadow-lg' : ''} ${
+                    isActive 
+                      ? statusColor.bg + ' ' + statusColor.border + ' border'
+                      : darkMode 
+                        ? 'bg-white/5 hover:bg-white/10' 
+                        : 'bg-white hover:bg-slate-50 border border-slate-200'
+                  }`}
+                >
+                  <StatusIcon className={`h-3.5 w-3.5 ${isActive ? statusColor.text : darkMode ? 'text-slate-400' : 'text-slate-500'}`} />
+                  <span className={`text-xs font-medium ${isActive ? statusColor.text : darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+                    {status === 'ALL' ? 'Tümü' : 
+                     status === 'PENDING' ? 'Bekleyen' :
+                     status === 'APPROVED' ? 'Onaylanan' :
+                     status === 'REJECTED' ? 'Reddedilen' : 'İptal Edilen'}
+                  </span>
+                </button>
+              )
             })}
           </div>
         </div>
+
+        {/* Refresh Button */}
+        <div className="mb-6">
+          <button
+            onClick={fetchRequests}
+            disabled={loading}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-all ${
+              darkMode 
+                ? 'bg-white/10 hover:bg-white/20 text-white disabled:opacity-50' 
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-700 disabled:opacity-50'
+            }`}
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+            <span className="text-sm font-medium">Yenile</span>
+          </button>
+        </div>
+
+        {/* Error Message */}
+        {error && (
+          <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 ${
+            darkMode 
+              ? 'bg-red-500/20 border border-red-500/30' 
+              : 'bg-red-50 border border-red-200'
+          }`}>
+            <AlertCircle className={`h-5 w-5 flex-shrink-0 ${darkMode ? 'text-red-400' : 'text-red-500'}`} />
+            <div className="flex-1">
+              <p className={`text-sm font-medium ${darkMode ? 'text-red-200' : 'text-red-800'}`}>
+                Hata
+              </p>
+              <p className={`text-sm ${darkMode ? 'text-red-300' : 'text-red-600'}`}>
+                {error}
+              </p>
+            </div>
+            <button 
+              onClick={() => setError(null)}
+              className={`p-1 rounded-lg ${darkMode ? 'hover:bg-red-500/30' : 'hover:bg-red-100'}`}
+            >
+              <XCircle className={`h-4 w-4 ${darkMode ? 'text-red-400' : 'text-red-500'}`} />
+            </button>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && requests.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin mb-4 text-blue-500" />
+            <p className={`${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+              Talepler yükleniyor...
+            </p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {!loading && filteredRequests.length === 0 && (
+          <div className={`rounded-2xl p-8 text-center ${
+            darkMode 
+              ? 'bg-white/5 border border-white/10' 
+              : 'bg-white border border-slate-200'
+          }`}>
+            <div className="mb-4">
+              <FileText className={`h-12 w-12 mx-auto ${darkMode ? 'text-slate-600' : 'text-slate-400'}`} />
+            </div>
+            <h3 className={`text-lg font-semibold mb-2 ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+              Henüz talep oluşturmadınız
+            </h3>
+            <p className={`mb-6 ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
+              Yeni bir talep oluşturarak başlayabilirsiniz
+            </p>
+            <Link
+              href="/mobile-app/leaves/new"
+              className={`inline-flex items-center gap-2 px-4 py-3 rounded-xl font-medium transition-all ${
+                darkMode 
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white' 
+                  : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white'
+              }`}
+            >
+              <Plus className="h-5 w-5" />
+              <span>Yeni Talep Oluştur</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Requests List */}
+        {!loading && filteredRequests.length > 0 && (
+          <div className="space-y-4">
+            {filteredRequests.map((item) => {
+              const statusColor = getStatusColor(item.REQUESTSTATUS)
+              const StatusIcon = statusColor.icon
+              const TypeIcon = getTypeIcon(item.REQUESTTYPE)
+              
+              return (
+                <Link
+                  key={item.REQUESTID}
+                  href={`/mobile-app/requests/${item.REQUESTID}`}
+                  className={`block rounded-xl transition-all hover:scale-[1.02] active:scale-95 ${
+                    darkMode 
+                      ? 'bg-white/5 hover:bg-white/10 border border-white/10' 
+                      : 'bg-white hover:bg-slate-50 border border-slate-200 shadow-sm'
+                  }`}
+                >
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2 rounded-lg ${statusColor.bg}`}>
+                          <TypeIcon className={`h-5 w-5 ${statusColor.text}`} />
+                        </div>
+                        <div>
+                          <h3 className={`font-semibold ${darkMode ? 'text-white' : 'text-slate-900'}`}>
+                            {getTypeText(item.REQUESTTYPE)}
+                          </h3>
+                          <p className={`text-xs ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {formatDate(item.CREATEDAT)}
+                          </p>
+                        </div>
+                      </div>
+                      <div className={`flex items-center gap-2 px-2.5 py-1 rounded-full border ${statusColor.bg} ${statusColor.border}`}>
+                        <StatusIcon className={`h-3.5 w-3.5 ${statusColor.text}`} />
+                        <span className={`text-xs font-medium ${statusColor.text}`}>
+                          {item.REQUESTSTATUS === 'PENDING' ? 'Bekliyor' :
+                           item.REQUESTSTATUS === 'APPROVED' ? 'Onaylandı' :
+                           item.REQUESTSTATUS === 'REJECTED' ? 'Reddedildi' : 'İptal Edildi'}
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Adım:</span>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-white' : 'text-slate-700'}`}>
+                            {item.CURRENTSTEP}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className={`text-xs ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>ID:</span>
+                          <span className={`text-xs font-mono ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {item.REQUESTID.substring(0, 8)}...
+                          </span>
+                        </div>
+                      </div>
+                      <ChevronRight className={`h-5 w-5 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`} />
+                    </div>
+                  </div>
+                </Link>
+              )
+            })}
+          </div>
+        )}
       </div>
 
-      <style jsx global>{`
-        @keyframes float { 0%, 100% { transform: translateY(0px) rotate(0deg); } 50% { transform: translateY(-20px) rotate(180deg); } }
-        @keyframes spin-slow { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes shimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(100%); } }
-        @keyframes blink { 0%, 50% { opacity: 1; } 51%, 100% { opacity:  0; } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
-        .animate-float { animation: float 10s ease-in-out infinite; }
-        .animate-spin-slow { animation: spin-slow 10s linear infinite; }
-        . animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
-        .animate-blink { animation: blink 1s step-end infinite; }
-        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
-      `}</style>
+      {/* Floating Action Button */}
+      <Link
+        href="/mobile-app/leaves/new"
+        className={`fixed bottom-24 right-5 z-40 p-4 rounded-full shadow-2xl transition-all hover:scale-110 active:scale-95 ${
+          darkMode 
+            ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700' 
+            : 'bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600'
+        }`}
+      >
+        <Plus className="h-6 w-6 text-white" />
+      </Link>
     </div>
-  );
+  )
 }
